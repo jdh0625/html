@@ -358,6 +358,8 @@ input[type=checkbox] { accent-color:var(--accent); }
 @media (max-width: 768px) {
   /* 기본 레이아웃 */
   body { overflow: auto; height: auto; min-height: 100vh; }
+  .pc-only-print { display: none !important; }
+  .mobile-print-row { display: flex !important; }
 
   #app { flex-direction: column; height: auto; min-height: 100vh; }
   #app.active { display: flex; }
@@ -560,11 +562,26 @@ input[type=checkbox] { accent-color:var(--accent); }
 
   <div class="main">
     <div id="weeklyView">
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;position:relative;">
+      <!-- PC: 인쇄 버튼 포함 헤더 -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:6px;position:relative;">
         <button onclick="changeWeek(-1)" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:18px;transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.28)';this.style.color='white'" onmouseout="this.style.background='rgba(59,130,246,0.12)';this.style.color='rgba(255,255,255,0.5)'">&#8249;</button>
-        <h1 id="weekTitle" style="margin:0;font-size:16px;letter-spacing:2px;">WEEKLY PLANNER</h1>
+        <h1 id="weekTitle" onclick="openWeekDatePicker()" style="margin:0;font-size:16px;letter-spacing:2px;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2);padding-bottom:2px;" title="클릭하여 날짜 설정">WEEKLY PLANNER</h1>
         <button onclick="changeWeek(1)" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:18px;transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.28)';this.style.color='white'" onmouseout="this.style.background='rgba(59,130,246,0.12)';this.style.color='rgba(255,255,255,0.5)'">&#8250;</button>
-        <button onclick="openPrintModal()" title="Ctrl+P" style="position:absolute;left:0;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
+        <!-- PC 전용 인쇄 버튼 -->
+        <button onclick="openPrintModal()" title="Ctrl+P" class="pc-only-print" style="position:absolute;right:0;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
+      </div>
+      <!-- 날짜 선택 팝업 -->
+      <div id="weekDatePicker" style="display:none;justify-content:center;margin-bottom:10px;">
+        <div style="background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;color:var(--muted);">기준 날짜 설정:</span>
+          <input type="date" id="weekDateInput" style="background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.3);border-radius:6px;color:white;padding:5px 8px;font-size:13px;outline:none;" onchange="applyWeekDate()" />
+          <button onclick="resetWeekToToday()" style="padding:5px 10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;color:#60a5fa;cursor:pointer;font-size:11px;font-family:'Noto Sans KR',sans-serif;">오늘로</button>
+          <button onclick="document.getElementById('weekDatePicker').style.display='none'" style="padding:5px 10px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--muted);cursor:pointer;font-size:11px;">닫기</button>
+        </div>
+      </div>
+      <!-- 모바일 전용 인쇄 버튼 (좌우 버튼 아래) -->
+      <div class="mobile-print-row" style="display:none;justify-content:flex-end;margin-bottom:10px;">
+        <button onclick="openPrintModal()" style="background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
       </div>
       <div class="top-section">
         <div class="box"><h3>📋 해야될 업무</h3><textarea data-key="todo" rows="4"></textarea></div>
@@ -2838,6 +2855,49 @@ function doFindPw() {
     res.style.background = 'rgba(239,68,68,0.08)';
     res.style.color = '#f87171';
   }
+}
+
+
+// ── 주간 날짜 직접 설정 ──
+function openWeekDatePicker() {
+  const picker = document.getElementById('weekDatePicker');
+  if (!picker) return;
+  const isOpen = picker.style.display === 'flex';
+  picker.style.display = isOpen ? 'none' : 'flex';
+  if (!isOpen) {
+    // 현재 주 월요일 날짜를 기본값으로
+    const mon = getWeekMonday(weekOffset);
+    const val = `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    document.getElementById('weekDateInput').value = val;
+  }
+}
+
+function applyWeekDate() {
+  const val = document.getElementById('weekDateInput').value;
+  if (!val) return;
+  const selected = new Date(val);
+  const today = new Date();
+  // 선택한 날짜가 속한 주의 월요일 계산
+  const dow = selected.getDay();
+  const diff = (dow === 0) ? -6 : 1 - dow;
+  const selMon = new Date(selected);
+  selMon.setDate(selected.getDate() + diff);
+  // 이번 주 월요일
+  const todayDow = today.getDay();
+  const todayDiff = (todayDow === 0) ? -6 : 1 - todayDow;
+  const thisMon = new Date(today);
+  thisMon.setDate(today.getDate() + todayDiff);
+  // offset 계산 (주 단위)
+  const diffMs = selMon - thisMon;
+  weekOffset = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+  document.getElementById('weekDatePicker').style.display = 'none';
+  renderWeek();
+}
+
+function resetWeekToToday() {
+  weekOffset = 0;
+  document.getElementById('weekDatePicker').style.display = 'none';
+  renderWeek();
 }
 
 document.addEventListener('input', save);
