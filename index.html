@@ -475,6 +475,10 @@ input[type=checkbox] { accent-color:var(--accent); }
       <label>비밀번호</label>
       <input type="password" id="loginPw" placeholder="비밀번호를 입력하세요" onkeydown="if(event.key==='Enter')doLogin()" />
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      <input type="checkbox" id="autoLoginCheck" checked style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
+      <label for="autoLoginCheck" style="font-size:12px;color:rgba(255,255,255,0.45);cursor:pointer;user-select:none;">로그인 상태 유지</label>
+    </div>
     <button class="login-btn" onclick="doLogin()">로그인</button>
     <div class="login-error" id="loginError"></div>
     <div style="display:flex;justify-content:center;gap:18px;margin-top:14px;">
@@ -1061,29 +1065,57 @@ input[type=checkbox] { accent-color:var(--accent); }
 const USERS = { 'jdh0625': 'jdh24682147!' };
 let currentUser = null;
 
-function doLogin() {
-  const id = document.getElementById('loginId').value.trim();
-  const pw = document.getElementById('loginPw').value;
+function doLogin(id, pw) {
+  // 자동 로그인 호출 시 파라미터로 받고, 아니면 input에서 읽기
+  if (!id) id = document.getElementById('loginId').value.trim();
+  if (!pw) pw = document.getElementById('loginPw').value;
   if (USERS[id] && USERS[id] === pw) {
     currentUser = id;
+    // 로그인 상태 localStorage에 저장 (자동 로그인)
+    const keepLogin = document.getElementById('autoLoginCheck');
+    if (!keepLogin || keepLogin.checked) {
+      localStorage.setItem('dahoon_auto_login', JSON.stringify({ id, pw, ts: Date.now() }));
+    }
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('app').classList.add('active');
     document.getElementById('userLabel').textContent = id;
     openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); });
   } else {
     const err = document.getElementById('loginError');
-    err.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
-    document.getElementById('loginPw').value = '';
-    setTimeout(() => err.textContent = '', 3000);
+    if (err) {
+      err.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+      document.getElementById('loginPw').value = '';
+      setTimeout(() => err.textContent = '', 3000);
+    }
   }
 }
 
 function doLogout() {
   currentUser = null;
+  // 자동 로그인 정보 삭제
+  localStorage.removeItem('dahoon_auto_login');
   document.getElementById('app').classList.remove('active');
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('loginId').value = '';
   document.getElementById('loginPw').value = '';
+}
+
+// 자동 로그인 체크 (페이지 로드 시)
+function checkAutoLogin() {
+  try {
+    const saved = localStorage.getItem('dahoon_auto_login');
+    if (!saved) return;
+    const { id, pw, ts } = JSON.parse(saved);
+    // 30일 이내 로그인 유지
+    const days30 = 30 * 24 * 60 * 60 * 1000;
+    if (Date.now() - ts > days30) {
+      localStorage.removeItem('dahoon_auto_login');
+      return;
+    }
+    if (USERS[id] && USERS[id] === pw) {
+      doLogin(id, pw);
+    }
+  } catch(e) {}
 }
 
 // ── PLANNER ──
@@ -2809,6 +2841,9 @@ function doFindPw() {
 }
 
 document.addEventListener('input', save);
+
+// 페이지 로드 시 자동 로그인 체크
+checkAutoLogin();
 
 
 
