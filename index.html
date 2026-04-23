@@ -1500,6 +1500,29 @@ function save() {
   });
 }
 
+// ── 구버전 key → 신버전 key 변환 매핑 생성 ──
+// 구버전: w{offset}-{요일}-am/pm
+// 신버전: date-{YYYY-MM-DD}-am/pm
+function buildLegacyKeyMap() {
+  const map = {};
+  const dayNames = ['월','화','수','목','금','토','일'];
+  // -8주 ~ +8주 범위로 매핑 생성
+  for (let offset = -8; offset <= 8; offset++) {
+    const monday = getWeekMonday(offset);
+    dayNames.forEach((d, i) => {
+      const dayDate = new Date(monday);
+      dayDate.setDate(monday.getDate() + i);
+      const dateKey = dateToKey(dayDate);
+      const newBase = `date-${dateKey}`;
+      const oldBase = `w${offset}-${d}`;
+      ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
+        map[sanitizeKey(`${oldBase}-${suffix}`)] = `${newBase}-${suffix}`;
+      });
+    });
+  }
+  return map;
+}
+
 async function load() {
   // Firebase에서 먼저 불러오기 시도, 실패 시 localStorage 사용
   if (fbReady && fbDB) {
@@ -1507,8 +1530,30 @@ async function load() {
       const snapshot = await fbDB.ref('dahoon/data').once('value');
       const data = snapshot.val();
       if (data) {
+        // 구버전 key 복구 매핑
+        const legacyMap = buildLegacyKeyMap();
+
         document.querySelectorAll('[data-key]').forEach(el => {
-          const v = data[sanitizeKey(el.dataset.key)];
+          const sanitized = sanitizeKey(el.dataset.key);
+          let v = data[sanitized];
+
+          // 새 key로 못 찾으면 → 구버전 key로 역매핑해서 찾기
+          if ((v === undefined || v === null || v === '') && el.dataset.key.startsWith('date-')) {
+            // 신버전 key에 해당하는 구버전 key 찾기
+            for (const [oldKey, newKey] of Object.entries(legacyMap)) {
+              if (newKey === el.dataset.key) {
+                const legacyVal = data[oldKey];
+                if (legacyVal !== undefined && legacyVal !== null && legacyVal !== '') {
+                  v = legacyVal;
+                  // 새 key로 마이그레이션 저장
+                  if (fbDB) fbDB.ref('dahoon/data').update({ [sanitizeKey(el.dataset.key)]: v }).catch(()=>{});
+                  try { localStorage.setItem('dahoon_' + el.dataset.key, v); } catch(e) {}
+                }
+                break;
+              }
+            }
+          }
+
           if (v !== undefined && v !== null && v !== '') {
             const wasReadonly = el.hasAttribute('readonly');
             if (wasReadonly) el.removeAttribute('readonly');
