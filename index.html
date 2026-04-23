@@ -567,20 +567,29 @@ input[type=checkbox] { accent-color:var(--accent); }
         <button onclick="changeWeek(-1)" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:18px;transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.28)';this.style.color='white'" onmouseout="this.style.background='rgba(59,130,246,0.12)';this.style.color='rgba(255,255,255,0.5)'">&#8249;</button>
         <h1 id="weekTitle" onclick="openWeekDatePicker()" style="margin:0;font-size:16px;letter-spacing:2px;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2);padding-bottom:2px;" title="클릭하여 날짜 설정">WEEKLY PLANNER</h1>
         <button onclick="changeWeek(1)" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:18px;transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.28)';this.style.color='white'" onmouseout="this.style.background='rgba(59,130,246,0.12)';this.style.color='rgba(255,255,255,0.5)'">&#8250;</button>
-        <!-- PC 전용 인쇄 버튼 -->
-        <button onclick="openPrintModal()" title="Ctrl+P" class="pc-only-print" style="position:absolute;right:0;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
+        <!-- PC 전용 버튼 그룹 -->
+        <div class="pc-only-print" style="position:absolute;right:0;display:flex;gap:6px;align-items:center;">
+          <button onclick="openPrintModal()" title="Ctrl+P" style="background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
+          <button onclick="toggleRecording()" id="recBtn" title="회의록 녹음" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:8px;padding:6px 13px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🎙 녹음</button>
+        </div>
       </div>
       <!-- 날짜 선택 팝업 -->
       <div id="weekDatePicker" style="display:none;justify-content:center;margin-bottom:10px;">
-        <div style="background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;">
+        <div style="background:rgba(59,130,246,0.10);border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <span style="font-size:12px;color:var(--muted);">기준 날짜 설정:</span>
           <input type="date" id="weekDateInput" style="background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.3);border-radius:6px;color:white;padding:5px 8px;font-size:13px;outline:none;" onchange="applyWeekDate()" />
           <button onclick="resetWeekToToday()" style="padding:5px 10px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);border-radius:6px;color:#60a5fa;cursor:pointer;font-size:11px;font-family:'Noto Sans KR',sans-serif;">오늘로</button>
           <button onclick="document.getElementById('weekDatePicker').style.display='none'" style="padding:5px 10px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--muted);cursor:pointer;font-size:11px;">닫기</button>
         </div>
       </div>
-      <!-- 모바일 전용 인쇄 버튼 (좌우 버튼 아래) -->
-      <div class="mobile-print-row" style="display:none;justify-content:flex-end;margin-bottom:10px;">
+      <!-- 한 주 내용 복사 버튼 -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;gap:8px;">
+        <button onclick="copyWeekContent()" style="padding:6px 14px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:#fbbf24;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">📋 한 주 내용 복사하기</button>
+        <button onclick="pasteWeekContent()" id="pasteWeekBtn" style="display:none;padding:6px 14px;background:rgba(74,222,128,0.10);border:1px solid rgba(74,222,128,0.3);border-radius:8px;color:#4ade80;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;align-items:center;gap:5px;">📌 복사한 내용 붙여넣기</button>
+      </div>
+      <!-- 모바일 전용 버튼 행 -->
+      <div class="mobile-print-row" style="display:none;justify-content:flex-end;gap:6px;margin-bottom:10px;">
+        <button onclick="toggleRecording()" id="recBtnMobile" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🎙 녹음</button>
         <button onclick="openPrintModal()" style="background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🖨 인쇄</button>
       </div>
       <div class="top-section">
@@ -880,6 +889,22 @@ input[type=checkbox] { accent-color:var(--accent); }
         🌟 꿈을 기록해보세요!<br>
         <span style="font-size:11px;opacity:0.6;margin-top:8px;display:block;">갖고 싶은 것, 이루고 싶은 꿈을 담아두는 공간이에요</span>
       </div>
+
+      <!-- ── 회의록 목록 섹션 ── -->
+      <div style="margin-top:32px;border-top:1px solid rgba(59,130,246,0.1);padding-top:22px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:white;letter-spacing:1px;">🎙 회의록 목록</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">녹음 후 저장된 회의록이 여기에 기록됩니다</div>
+          </div>
+          <button onclick="toggleRecording()" style="padding:7px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🎙 녹음하기</button>
+        </div>
+        <div id="meeting_log_list" style="display:flex;flex-direction:column;gap:10px;"></div>
+        <div id="meeting_log_empty" style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">
+          🎙 아직 저장된 회의록이 없어요<br>
+          <span style="font-size:11px;opacity:0.6;margin-top:5px;display:block;">Weekly 탭 → 녹음 버튼으로 시작하세요</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1026,6 +1051,51 @@ input[type=checkbox] { accent-color:var(--accent); }
       </div>
     </div>
 
+<!-- 회의록 녹음 모달 -->
+<div id="recModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:400;align-items:center;justify-content:center;">
+  <div style="background:#0c1829;border:1px solid rgba(239,68,68,0.3);border-radius:18px;padding:28px;width:520px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;gap:16px;">
+    <!-- 상단 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="recDot" style="width:10px;height:10px;border-radius:50%;background:#f87171;box-shadow:0 0 8px #f87171;animation:recPulse 1s infinite;display:none;"></div>
+        <span style="font-size:15px;font-weight:700;color:white;">🎙 회의록 녹음</span>
+        <span id="recTimer" style="font-size:12px;color:var(--muted);">00:00</span>
+      </div>
+      <button onclick="closeRecModal()" style="background:transparent;border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:var(--muted);cursor:pointer;padding:5px 10px;font-size:12px;">✕ 닫기</button>
+    </div>
+
+    <!-- 실시간 텍스트 -->
+    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.15);border-radius:10px;padding:14px;min-height:60px;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">실시간 인식</div>
+      <div id="recLive" style="font-size:13px;color:rgba(255,255,255,0.7);font-family:'Noto Sans KR',sans-serif;line-height:1.6;min-height:24px;">음성을 인식하면 여기에 표시됩니다...</div>
+    </div>
+
+    <!-- AI 정리 결과 -->
+    <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:10px;padding:14px;flex:1;min-height:160px;max-height:300px;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:10px;color:#60a5fa;">✨ AI 회의록 정리</div>
+        <div id="recAiStatus" style="font-size:10px;color:var(--muted);"></div>
+      </div>
+      <div id="recResult" style="font-size:13px;color:white;font-family:'Noto Sans KR',sans-serif;line-height:1.8;white-space:pre-wrap;">녹음을 시작하면 AI가 주제별로 자동 정리합니다.</div>
+    </div>
+
+    <!-- 버튼 -->
+    <div style="display:flex;gap:8px;">
+      <button id="recStartBtn" onclick="startRecording()" style="flex:1;padding:11px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;border-radius:10px;color:white;cursor:pointer;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;">🎙 녹음 시작</button>
+      <button id="recStopBtn" onclick="stopRecording()" style="flex:1;padding:11px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:var(--muted);cursor:pointer;font-size:14px;font-family:'Noto Sans KR',sans-serif;display:none;">⏹ 중지</button>
+      <button id="recSaveBtn" onclick="saveRecResult()" style="flex:1;padding:11px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:10px;color:white;cursor:pointer;font-size:14px;font-weight:700;font-family:'Noto Sans KR',sans-serif;display:none;">💾 저장</button>
+    </div>
+    <div style="font-size:10px;color:var(--muted);text-align:center;">녹음 중지 후 AI가 주제별로 자동 정리 → 저장하면 업무 입력칸에 추가됩니다</div>
+  </div>
+</div>
+
+<style>
+@keyframes recPulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.4; transform:scale(0.8); }
+}
+</style>
+
 <!-- 인쇄 미리보기 모달 -->
 <div id="printModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;overflow:auto;">
   <div style="background:#1a1a2e;min-height:100vh;padding:20px;display:flex;flex-direction:column;">
@@ -1096,7 +1166,7 @@ function doLogin(id, pw) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('app').classList.add('active');
     document.getElementById('userLabel').textContent = id;
-    openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); });
+    openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); });
   } else {
     const err = document.getElementById('loginError');
     if (err) {
@@ -1148,7 +1218,7 @@ function showView(v) {
   if (target) target.classList.remove('hidden');
   if (v === 'ledger') loadLedger();
   if (v === 'invest') renderInvest();
-  if (v === 'wish') renderWish();
+  if (v === 'wish') { renderWish(); renderMeetingLogs(); }
 }
 
 const week = document.getElementById('week');
@@ -1160,7 +1230,13 @@ function getWeekMonday(offset) {
   const diff = (dow === 0) ? -6 : 1 - dow;
   const mon = new Date(today);
   mon.setDate(today.getDate() + diff + (offset * 7));
+  mon.setHours(0,0,0,0);
   return mon;
+}
+
+// 날짜 → YYYY-MM-DD 문자열
+function dateToKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function renderWeek() {
@@ -1169,34 +1245,62 @@ function renderWeek() {
   const endDate = new Date(monday);
   endDate.setDate(monday.getDate() + 6);
 
-  // 주간 타이틀 업데이트
   const fmt = d => `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-  const isThisWeek = weekOffset === 0;
+
+  // 이번주인지 비교 (날짜 기준)
+  const thisMonday = getWeekMonday(0);
+  const isThisWeek = dateToKey(monday) === dateToKey(thisMonday);
+  const diffWeeks = weekOffset;
+
   document.getElementById('weekTitle').textContent =
     isThisWeek ? `이번 주  ${fmt(monday)} ~ ${fmt(endDate)}` :
-    weekOffset < 0 ? `${Math.abs(weekOffset)}주 전  ${fmt(monday)} ~ ${fmt(endDate)}` :
-                     `${weekOffset}주 후  ${fmt(monday)} ~ ${fmt(endDate)}`;
+    diffWeeks < 0 ? `${Math.abs(diffWeeks)}주 전  ${fmt(monday)} ~ ${fmt(endDate)}` :
+                    `${diffWeeks}주 후  ${fmt(monday)} ~ ${fmt(endDate)}`;
 
   days.forEach((d, i) => {
     const dayDate = new Date(monday);
     dayDate.setDate(monday.getDate() + i);
+
+    // ★ key를 실제 날짜 기반으로 생성 (YYYY-MM-DD)
+    const dateKey = dateToKey(dayDate);
+    const weekKey = `date-${dateKey}`;  // ex: date-2025-04-21
+
     const yy = String(dayDate.getFullYear()).slice(2);
     const mm = String(dayDate.getMonth()+1).padStart(2,'0');
     const dd = String(dayDate.getDate()).padStart(2,'0');
-    const dateLabel = `${yy}-${mm}-${dd}`;
-    // 주간별 고유 key (offset 포함)
-    const weekKey = `w${weekOffset}`;
+    const dateLabel = `${yy}.${mm}.${dd}`;
+
+    // 오늘 강조
+    const todayKey = dateToKey(new Date());
+    const isToday = dateKey === todayKey;
+    const todayStyle = isToday ? 'border:1px solid rgba(59,130,246,0.5);background:rgba(59,130,246,0.06);' : '';
+
     const div = document.createElement('div');
     div.className = 'day';
-    div.innerHTML = `<b>${d}<span style="font-weight:400;font-size:10px;color:var(--muted);margin-left:5px;">(${dateLabel})</span></b>
-  <div class='time'>오전 (09~12)</div>
-  <select data-key='${weekKey}-${d}-am-type'><option>🔵업무</option><option>🟢개인</option><option>🟡투자</option></select>
-  <textarea class='small-textarea' data-key='${weekKey}-${d}-am'></textarea>
-  <input type='checkbox' data-key='${weekKey}-${d}-am-check'>
-  <div class='time'>오후 (13~18)</div>
-  <select data-key='${weekKey}-${d}-pm-type'><option>🔵업무</option><option>🟢개인</option><option>🟡투자</option></select>
-  <textarea class='small-textarea' data-key='${weekKey}-${d}-pm'></textarea>
-  <input type='checkbox' data-key='${weekKey}-${d}-pm-check'>`;
+    div.style.cssText = todayStyle;
+    div.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <b style="${isToday ? 'color:#60a5fa;' : ''}">${d}
+      <span onclick="openDayDateEdit('${dateKey}',${i})" style="font-weight:400;font-size:10px;color:${isToday ? '#60a5fa' : 'var(--muted)'};margin-left:5px;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2);" title="클릭하여 날짜 수정">(${dateLabel})</span>
+      ${isToday ? '<span style="font-size:9px;background:#3b82f6;color:white;border-radius:3px;padding:1px 5px;margin-left:4px;">오늘</span>' : ''}
+    </b>
+    </div>
+    <div id="dayDateEdit_${i}" style="display:none;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:5px;background:rgba(59,130,246,0.08);border-radius:6px;padding:5px 8px;">
+        <span style="font-size:10px;color:var(--muted);">날짜:</span>
+        <input type="date" id="dayDateInput_${i}" value="${dateKey}"
+          style="background:transparent;border:none;border-bottom:1px solid rgba(59,130,246,0.4);color:white;font-size:12px;outline:none;flex:1;"
+          onchange="applyDayDate(${i}, this.value)" />
+        <button onclick="document.getElementById('dayDateEdit_${i}').style.display='none'" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;">✕</button>
+      </div>
+    </div>
+    <div class='time'>오전 (09~12)</div>
+    <select data-key='${weekKey}-am-type'><option>🔵업무</option><option>🟢개인</option><option>🟡투자</option></select>
+    <textarea class='small-textarea' data-key='${weekKey}-am'></textarea>
+    <input type='checkbox' data-key='${weekKey}-am-check'>
+    <div class='time'>오후 (13~18)</div>
+    <select data-key='${weekKey}-pm-type'><option>🔵업무</option><option>🟢개인</option><option>🟡투자</option></select>
+    <textarea class='small-textarea' data-key='${weekKey}-pm'></textarea>
+    <input type='checkbox' data-key='${weekKey}-pm-check'>`;
     week.appendChild(div);
   });
   setTimeout(load, 0);
@@ -1212,7 +1316,8 @@ renderWeek();
 document.addEventListener('click', function(e) {
   if (e.target.tagName === 'TEXTAREA' && e.target.dataset.key &&
       (e.target.dataset.key.includes('-am') || e.target.dataset.key.includes('-pm')) &&
-      !e.target.dataset.key.startsWith('month-')) {
+      !e.target.dataset.key.startsWith('month-') &&
+      !e.target.dataset.key.startsWith('monthly-')) {
     currentTextarea = e.target;
     currentKey = e.target.dataset.key;
     const val = e.target.value;
@@ -2900,10 +3005,425 @@ function resetWeekToToday() {
   renderWeek();
 }
 
+
+// ════════════════════════════════
+// ── 회의록 녹음 기능 ──
+// ════════════════════════════════
+let recognition = null;
+let isRecording = false;
+let recFullText = '';      // 전체 누적 텍스트
+let recTimer = null;
+let recSeconds = 0;
+let silenceTimer = null;   // 침묵 감지 타이머
+
+function toggleRecording() {
+  if (isRecording) stopRecording();
+  else openRecModal();
+}
+
+function openRecModal() {
+  const m = document.getElementById('recModal');
+  if (m) m.style.display = 'flex';
+  // 초기화
+  recFullText = '';
+  recSeconds = 0;
+  document.getElementById('recLive').textContent = '음성을 인식하면 여기에 표시됩니다...';
+  document.getElementById('recResult').textContent = '녹음을 시작하면 AI가 주제별로 자동 정리합니다.';
+  document.getElementById('recTimer').textContent = '00:00';
+  document.getElementById('recDot').style.display = 'none';
+  document.getElementById('recStartBtn').style.display = 'block';
+  document.getElementById('recStopBtn').style.display = 'none';
+  document.getElementById('recSaveBtn').style.display = 'none';
+  document.getElementById('recAiStatus').textContent = '';
+}
+
+function closeRecModal() {
+  stopRecording();
+  const m = document.getElementById('recModal');
+  if (m) m.style.display = 'none';
+}
+
+function startRecording() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('이 브라우저는 음성인식을 지원하지 않습니다.\n크롬(Chrome) 브라우저를 사용해주세요!');
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'ko-KR';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onresult = (e) => {
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) {
+        final += t;
+      } else {
+        interim += t;
+      }
+    }
+    if (final) {
+      recFullText += final + ' ';
+      document.getElementById('recLive').textContent = recFullText.slice(-200);
+      // 침묵 타이머 리셋 (3초 침묵 시 중간 정리)
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        if (recFullText.length > 50) partialOrganize();
+      }, 3000);
+    }
+    if (interim) {
+      document.getElementById('recLive').textContent = recFullText.slice(-150) + interim;
+    }
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error !== 'no-speech') {
+      console.log('음성인식 오류:', e.error);
+    }
+  };
+
+  recognition.onend = () => {
+    // continuous가 꺼지면 재시작 (녹음 중일 때만)
+    if (isRecording) {
+      try { recognition.start(); } catch(e) {}
+    }
+  };
+
+  recognition.start();
+  isRecording = true;
+
+  // UI 업데이트
+  document.getElementById('recDot').style.display = 'block';
+  document.getElementById('recStartBtn').style.display = 'none';
+  document.getElementById('recStopBtn').style.display = 'block';
+
+  // 타이머
+  recTimer = setInterval(() => {
+    recSeconds++;
+    const m = String(Math.floor(recSeconds/60)).padStart(2,'0');
+    const s = String(recSeconds%60).padStart(2,'0');
+    document.getElementById('recTimer').textContent = m + ':' + s;
+
+    // 버튼 색상 깜빡임
+    const btn = document.getElementById('recBtn') || document.getElementById('recBtnMobile');
+    if (btn) btn.style.background = recSeconds % 2 === 0 ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.12)';
+  }, 1000);
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  clearTimeout(silenceTimer);
+  clearInterval(recTimer);
+
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+    recognition = null;
+  }
+
+  // 버튼 원상복귀
+  const btn = document.getElementById('recBtn') || document.getElementById('recBtnMobile');
+  if (btn) btn.style.background = 'rgba(239,68,68,0.12)';
+
+  document.getElementById('recDot').style.display = 'none';
+  document.getElementById('recStopBtn').style.display = 'none';
+
+  if (recFullText.trim().length > 0) {
+    organizeWithAI(recFullText);
+  }
+}
+
+// 중간 정리 (긴 녹음 시 실시간 요약)
+async function partialOrganize() {
+  if (!recFullText.trim() || recFullText.length < 50) return;
+  document.getElementById('recAiStatus').textContent = '🤖 정리 중...';
+  try {
+    const result = await callOrganizeAI(recFullText);
+    document.getElementById('recResult').textContent = result;
+    document.getElementById('recAiStatus').textContent = '✅ 실시간 정리';
+  } catch(e) {}
+}
+
+// 최종 AI 정리
+async function organizeWithAI(text) {
+  document.getElementById('recAiStatus').textContent = '🤖 AI 정리 중...';
+  document.getElementById('recResult').textContent = '잠시만 기다려주세요...';
+  try {
+    const result = await callOrganizeAI(text);
+    document.getElementById('recResult').textContent = result;
+    document.getElementById('recAiStatus').textContent = '✅ 정리 완료';
+    document.getElementById('recSaveBtn').style.display = 'block';
+  } catch(e) {
+    document.getElementById('recResult').textContent = recFullText;
+    document.getElementById('recAiStatus').textContent = '⚠ AI 오류 - 원문 표시';
+    document.getElementById('recSaveBtn').style.display = 'block';
+  }
+}
+
+async function callOrganizeAI(text) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `다음은 회의 또는 메모 녹음 내용입니다. 내용의 흐름을 파악하여 주제가 바뀌는 부분을 구분하고, 아래 형식으로 정리해주세요.
+
+형식:
+📌 [주제명]
+• 핵심 내용 1
+• 핵심 내용 2
+
+📌 [다음 주제명]
+• 핵심 내용 1
+...
+
+규칙:
+- 주제는 간결하게 (5단어 이내)
+- 내용은 핵심만 bullet로
+- 같은 맥락이면 하나의 주제로 묶기
+- 한국어로 정리
+- 마크다운 기호 없이 위 형식만 사용
+
+녹음 내용:
+${text}`
+      }]
+    })
+  });
+  const data = await response.json();
+  return data.content?.[0]?.text || text;
+}
+
+// 결과를 업무 입력칸에 저장
+function saveRecResult() {
+  const result = document.getElementById('recResult').textContent;
+  if (!result || result === '녹음을 시작하면 AI가 주제별로 자동 정리합니다.') return;
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const saveText = `[ 회의록 ${dateStr} ${timeStr} ]\n\n` + result;
+
+  // ① 오늘 요일 업무칸에 자동 저장 (날짜 기반 key)
+  const dateKey = dateToKey(now);
+  const key = `date-${dateKey}-am`;
+  const ta = document.querySelector(`[data-key="${key}"]`);
+  if (ta) {
+    ta.value = (ta.value ? ta.value + '\n\n' : '') + saveText;
+    dbSet(key, ta.value);
+  } else {
+    const todoTa = document.querySelector('[data-key="todo"]');
+    if (todoTa) {
+      todoTa.value = (todoTa.value ? todoTa.value + '\n\n' : '') + saveText;
+      dbSet('todo', todoTa.value);
+    }
+  }
+
+  // ② 회의록 목록에도 저장
+  const recItem = {
+    id: Date.now(),
+    date: dateStr,
+    time: timeStr,
+    title: `회의록 ${dateStr} ${timeStr}`,
+    content: result,
+    duration: document.getElementById('recTimer')?.textContent || '00:00'
+  };
+  meetingLogs.unshift(recItem);
+  saveMeetingLogs();
+
+  save();
+  closeRecModal();
+
+  // 살 품목 탭이 열려있으면 회의록 섹션 새로고침
+  if (!document.getElementById('wishView').classList.contains('hidden')) {
+    renderMeetingLogs();
+  }
+  alert('✅ 회의록이 저장됐습니다!\n업무칸 + 회의록 목록에 저장됨');
+}
+
+// ── 회의록 목록 저장/불러오기 ──
+let meetingLogs = [];
+
+function saveMeetingLogs() {
+  const val = JSON.stringify(meetingLogs);
+  try { localStorage.setItem('dahoon_meeting_logs', val); } catch(e) {}
+  if (fbReady && fbDB) fbDB.ref('dahoon/data').update({ 'meeting_logs': val }).catch(()=>{});
+}
+
+async function loadMeetingLogs() {
+  let raw = null;
+  if (fbReady && fbDB) {
+    try { const s = await fbDB.ref('dahoon/data').child('meeting_logs').once('value'); raw = s.val(); } catch(e) {}
+  }
+  if (!raw) raw = localStorage.getItem('dahoon_meeting_logs');
+  try { meetingLogs = raw ? JSON.parse(raw) : []; } catch(e) { meetingLogs = []; }
+  renderMeetingLogs();
+}
+
+function renderMeetingLogs() {
+  const list = document.getElementById('meeting_log_list');
+  const empty = document.getElementById('meeting_log_empty');
+  if (!list) return;
+
+  if (!meetingLogs.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  list.innerHTML = meetingLogs.map((log, i) => `
+    <div style="background:var(--panel);border:1px solid rgba(59,130,246,0.1);border-radius:12px;padding:16px;transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(59,130,246,0.3)'" onmouseout="this.style.borderColor='rgba(59,130,246,0.1)'">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">🎙</span>
+          <div>
+            <div style="font-size:13px;font-weight:700;color:white;">${log.title}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px;">녹음시간 ${log.duration}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button onclick="toggleMeetingLog(${i})" style="padding:4px 10px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);border-radius:6px;color:#60a5fa;cursor:pointer;font-size:11px;" id="ml_toggle_${i}">펼치기</button>
+          <button onclick="deleteMeetingLog(${i})" style="padding:4px 8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:6px;color:#f87171;cursor:pointer;font-size:12px;">×</button>
+        </div>
+      </div>
+      <!-- 내용 (기본 접힘) -->
+      <div id="ml_content_${i}" style="display:none;background:rgba(59,130,246,0.04);border-radius:8px;padding:12px;font-size:12px;color:rgba(255,255,255,0.8);font-family:'Noto Sans KR',sans-serif;line-height:1.8;white-space:pre-wrap;max-height:300px;overflow-y:auto;">${log.content}</div>
+    </div>
+  `).join('');
+}
+
+function toggleMeetingLog(i) {
+  const el = document.getElementById('ml_content_' + i);
+  const btn = document.getElementById('ml_toggle_' + i);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (btn) btn.textContent = isOpen ? '펼치기' : '접기';
+}
+
+function deleteMeetingLog(i) {
+  if (!confirm('회의록을 삭제할까요?')) return;
+  meetingLogs.splice(i, 1);
+  saveMeetingLogs();
+  renderMeetingLogs();
+}
+
+
+// ── 한 주 내용 복사/붙여넣기 ──
+let copiedWeekData = null;
+
+function copyWeekContent() {
+  const monday = getWeekMonday(weekOffset);
+  const data = { weekOffset, items: [] };
+  const days = ['월','화','수','목','금','토','일'];
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + i);
+    const dateKey = dateToKey(dayDate);
+    const weekKey = `date-${dateKey}`;
+
+    const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
+    const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
+    const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
+    const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
+
+    data.items.push({
+      day: days[i],
+      am: amTa?.value || '',
+      pm: pmTa?.value || '',
+      amType: amSel?.value || '🔵업무',
+      pmType: pmSel?.value || '🔵업무',
+    });
+  }
+
+  copiedWeekData = data;
+  localStorage.setItem('dahoon_copied_week', JSON.stringify(data));
+
+  // 붙여넣기 버튼 표시
+  const pasteBtn = document.getElementById('pasteWeekBtn');
+  if (pasteBtn) pasteBtn.style.display = 'flex';
+
+  // 피드백
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✅ 복사됨!';
+  btn.style.color = '#4ade80';
+  setTimeout(() => { btn.textContent = orig; btn.style.color = '#fbbf24'; }, 2000);
+}
+
+function pasteWeekContent() {
+  const raw = localStorage.getItem('dahoon_copied_week');
+  if (!raw) return;
+  const data = JSON.parse(raw);
+
+  if (!confirm('현재 주의 내용을 복사한 주의 내용으로 덮어쓸까요?\n기존 내용은 사라집니다!')) return;
+
+  const monday = getWeekMonday(weekOffset);
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + i);
+    const dateKey = dateToKey(dayDate);
+    const weekKey = `date-${dateKey}`;
+    const item = data.items[i];
+    if (!item) continue;
+
+    const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
+    const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
+    const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
+    const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
+
+    if (amTa)  { amTa.value  = item.am;     dbSet(weekKey + '-am',      item.am); }
+    if (pmTa)  { pmTa.value  = item.pm;     dbSet(weekKey + '-pm',      item.pm); }
+    if (amSel) { amSel.value = item.amType; dbSet(weekKey + '-am-type', item.amType); }
+    if (pmSel) { pmSel.value = item.pmType; dbSet(weekKey + '-pm-type', item.pmType); }
+  }
+  save();
+  alert('✅ 붙여넣기 완료!');
+}
+
+// ── 요일별 날짜 직접 수정 → 주 전체 이동 ──
+function openDayDateEdit(currentDateKey, dayIndex) {
+  // 모든 다른 날짜 편집창 닫기
+  for (let i = 0; i < 7; i++) {
+    const el = document.getElementById('dayDateEdit_' + i);
+    if (el && i !== dayIndex) el.style.display = 'none';
+  }
+  const box = document.getElementById('dayDateEdit_' + dayIndex);
+  if (!box) return;
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+function applyDayDate(dayIndex, newDateStr) {
+  if (!newDateStr) return;
+  // dayIndex = 0(월)~6(일), 새 날짜에서 월요일 계산
+  const selected = new Date(newDateStr);
+  // dayIndex번째 날이 selected가 되려면 월요일은 selected - dayIndex일
+  const newMonday = new Date(selected);
+  newMonday.setDate(selected.getDate() - dayIndex);
+
+  // 현재 이번주 월요일과의 차이(주 단위)로 offset 계산
+  const thisMonday = getWeekMonday(0);
+  const diffMs = newMonday - thisMonday;
+  weekOffset = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+
+  renderWeek();
+}
+
 document.addEventListener('input', save);
 
 // 페이지 로드 시 자동 로그인 체크
 checkAutoLogin();
+// 복사된 주 있으면 붙여넣기 버튼 표시
+if (localStorage.getItem('dahoon_copied_week')) { const b = document.getElementById('pasteWeekBtn'); if(b) b.style.display='flex'; }
 
 
 
