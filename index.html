@@ -582,10 +582,11 @@ input[type=checkbox] { accent-color:var(--accent); }
           <button onclick="document.getElementById('weekDatePicker').style.display='none'" style="padding:5px 10px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:var(--muted);cursor:pointer;font-size:11px;">닫기</button>
         </div>
       </div>
-      <!-- 한 주 내용 복사 버튼 -->
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;gap:8px;">
-        <button onclick="copyWeekContent()" style="padding:6px 14px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:#fbbf24;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">📋 한 주 내용 복사하기</button>
-        <button onclick="pasteWeekContent()" id="pasteWeekBtn" style="display:none;padding:6px 14px;background:rgba(74,222,128,0.10);border:1px solid rgba(74,222,128,0.3);border-radius:8px;color:#4ade80;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;align-items:center;gap:5px;">📌 복사한 내용 붙여넣기</button>
+      <!-- 한 주 내용 버튼 -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;gap:8px;flex-wrap:wrap;">
+        <button onclick="copyWeekContent()" style="padding:6px 14px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:#fbbf24;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">📋 한 주 복사</button>
+        <button onclick="pasteWeekContent()" id="pasteWeekBtn" style="display:none;padding:6px 14px;background:rgba(74,222,128,0.10);border:1px solid rgba(74,222,128,0.3);border-radius:8px;color:#4ade80;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;align-items:center;gap:5px;">📌 붙여넣기</button>
+        <button onclick="deleteWeekContent()" style="padding:6px 14px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#f87171;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;gap:5px;">🗑 한 주 전체 삭제</button>
       </div>
       <!-- 모바일 전용 버튼 행 -->
       <div class="mobile-print-row" style="display:none;justify-content:flex-end;gap:6px;margin-bottom:10px;">
@@ -1283,6 +1284,7 @@ function renderWeek() {
       <span onclick="openDayDateEdit('${dateKey}',${i})" style="font-weight:400;font-size:10px;color:${isToday ? '#60a5fa' : 'var(--muted)'};margin-left:5px;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2);" title="클릭하여 날짜 수정">(${dateLabel})</span>
       ${isToday ? '<span style="font-size:9px;background:#3b82f6;color:white;border-radius:3px;padding:1px 5px;margin-left:4px;">오늘</span>' : ''}
     </b>
+    <button onclick="deleteDayContent('${dateKey}')" title="${d} 내용 삭제" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:5px;color:rgba(248,113,113,0.6);cursor:pointer;font-size:10px;padding:2px 7px;font-family:'Noto Sans KR',sans-serif;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(239,68,68,0.08)';this.style.color='rgba(248,113,113,0.6)'">🗑 삭제</button>
     </div>
     <div id="dayDateEdit_${i}" style="display:none;margin-bottom:6px;">
       <div style="display:flex;align-items:center;gap:5px;background:rgba(59,130,246,0.08);border-radius:6px;padding:5px 8px;">
@@ -3360,6 +3362,80 @@ function deleteMeetingLog(i) {
   renderMeetingLogs();
 }
 
+
+
+// ── 한 주 전체 삭제 ──
+function deleteWeekContent() {
+  if (!confirm('이번 주 전체 내용을 삭제할까요?\n삭제하면 복구가 어렵습니다!')) return;
+
+  const monday = getWeekMonday(weekOffset);
+  const updates = {};
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(monday);
+    dayDate.setDate(monday.getDate() + i);
+    const dateKey = dateToKey(dayDate);
+    const weekKey = `date-${dateKey}`;
+
+    ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
+      const key = `${weekKey}-${suffix}`;
+      try { localStorage.removeItem('dahoon_' + key); } catch(e) {}
+      updates[sanitizeKey(key)] = null;
+    });
+
+    // 화면 초기화
+    const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
+    const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
+    const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
+    const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
+    if (amTa)  amTa.value  = '';
+    if (pmTa)  pmTa.value  = '';
+    if (amSel) amSel.selectedIndex = 0;
+    if (pmSel) pmSel.selectedIndex = 0;
+  }
+
+  // Firebase에서도 삭제
+  if (fbReady && fbDB) {
+    fbDB.ref('dahoon/data').update(updates).catch(()=>{});
+  }
+
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✅ 삭제됨!';
+  setTimeout(() => { btn.textContent = orig; }, 2000);
+}
+
+// ── 일자별 삭제 ──
+function deleteDayContent(dateKey) {
+  const dayDate = new Date(dateKey);
+  const mm = String(dayDate.getMonth()+1).padStart(2,'0');
+  const dd = String(dayDate.getDate()).padStart(2,'0');
+  if (!confirm(`${mm}/${dd} 하루 내용을 삭제할까요?`)) return;
+
+  const weekKey = `date-${dateKey}`;
+  const updates = {};
+
+  ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
+    const key = `${weekKey}-${suffix}`;
+    try { localStorage.removeItem('dahoon_' + key); } catch(e) {}
+    updates[sanitizeKey(key)] = null;
+  });
+
+  // 화면 초기화
+  const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
+  const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
+  const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
+  const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
+  if (amTa)  amTa.value  = '';
+  if (pmTa)  pmTa.value  = '';
+  if (amSel) amSel.selectedIndex = 0;
+  if (pmSel) pmSel.selectedIndex = 0;
+
+  // Firebase에서도 삭제
+  if (fbReady && fbDB) {
+    fbDB.ref('dahoon/data').update(updates).catch(()=>{});
+  }
+}
 
 // ── 한 주 내용 복사/붙여넣기 ──
 let copiedWeekData = null;
