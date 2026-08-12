@@ -636,6 +636,11 @@ body.theme-light .set-seg button { color: #475569; }
     <div class="login-spiral-ring"></div>
     <div class="login-title">DA HOON</div>
     <div class="login-sub">PERSONAL PLANNER SYSTEM</div>
+    <div id="envWarn" style="display:none;background:rgba(239,68,68,0.14);border:1px solid rgba(239,68,68,0.4);border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6;color:#fca5a5;">
+      ⚠ <b>파일을 직접 열면 로그인이 안 됩니다.</b><br>
+      아래 주소로 접속하세요:<br>
+      <a href="https://jdh0625.github.io/html/" style="color:#93c5fd;word-break:break-all;">https://jdh0625.github.io/html/</a>
+    </div>
     <div class="login-field">
       <label>이메일</label>
       <input type="email" id="loginEmail" placeholder="이메일 주소" autocomplete="username" />
@@ -1442,7 +1447,9 @@ function friendlyAuthError(code) {
     'auth/invalid-email': '이메일 형식이 올바르지 않습니다.',
     'auth/user-not-found': '가입되지 않은 이메일입니다. 회원가입을 먼저 해주세요.',
     'auth/wrong-password': '비밀번호가 올바르지 않습니다.',
-    'auth/invalid-credential': '이메일 또는 비밀번호가 올바르지 않습니다.',
+    'auth/invalid-credential': '이메일 또는 비밀번호가 올바르지 않습니다. (가입 안 했다면 회원가입 먼저)',
+    'auth/invalid-login-credentials': '이메일 또는 비밀번호가 올바르지 않습니다. (가입 안 했다면 회원가입 먼저)',
+    'auth/missing-password': '비밀번호를 입력해 주세요.',
     'auth/email-already-in-use': '이미 가입된 이메일입니다. 로그인해 주세요.',
     'auth/weak-password': '비밀번호는 6자 이상이어야 합니다.',
     'auth/too-many-requests': '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
@@ -1454,8 +1461,14 @@ function friendlyAuthError(code) {
 }
 
 async function doAuth() {
+  // 로컬 파일(file://)이나 비보안 컨텍스트에서는 Firebase 인증이 동작하지 않음
+  if (location.protocol === 'file:') {
+    authError('로컬 파일에서는 로그인이 안 됩니다. https://jdh0625.github.io/html/ 로 접속하세요.');
+    const w = document.getElementById('envWarn'); if (w) w.style.display = 'block';
+    return;
+  }
   if (!window.firebase || !firebase.auth) { authError('인증 모듈 로딩 중입니다. 잠시 후 다시 시도해 주세요.'); return; }
-  const email = (document.getElementById('loginEmail').value || '').trim();
+  const email = (document.getElementById('loginEmail').value || '').trim().toLowerCase();
   const pw = document.getElementById('loginPw').value;
   if (!email || !pw) { authError('이메일과 비밀번호를 입력해 주세요.'); return; }
 
@@ -4102,6 +4115,10 @@ async function cleanupLegacyKeys() {
 loadSettingsLocal();
 applySettings();
 renderNav();
+// 로컬 파일로 열었으면 로그인 화면에 경고 표시 (Firebase 인증은 https/localhost 에서만 동작)
+if (location.protocol === 'file:') {
+  const w = document.getElementById('envWarn'); if (w) w.style.display = 'block';
+}
 // 보안 상태 조기 확인 (배지/배너 준비) - Firebase SDK 로드 후 재확인됨
 setTimeout(() => { if (typeof checkDbSecurity === 'function') checkDbSecurity(); }, 2500);
 
