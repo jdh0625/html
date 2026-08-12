@@ -1397,6 +1397,22 @@ body.theme-light .set-seg button { color: #475569; }
           <a class="set-btn ghost" href="https://console.firebase.google.com/project/dahoon-planner/database/dahoon-planner-default-rtdb/rules" target="_blank" rel="noopener" style="text-decoration:none;">🔗 콘솔 열기</a>
           <button class="set-btn ghost" onclick="checkDbSecurity()">🔄 다시 확인</button>
         </div>
+
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);">
+          <b style="color:var(--text);font-size:13px;">🔐 더 강력하게 (권장) — UID 기반 규칙</b>
+          <div style="font-size:12px;color:var(--muted);line-height:1.7;margin:6px 0;">
+            이메일 대신 <b>계정 고유번호(UID)</b>로 잠그면 더 안전합니다(이메일을 바꾸거나 재사용해도 안전).
+            아래 내 UID가 들어간 규칙을 복사해 같은 방법으로 게시하세요.
+          </div>
+          <div class="set-row" style="padding:8px 0;">
+            <div class="set-label">내 계정 UID</div>
+            <code id="myUidBox" style="font-size:11px;color:var(--accent2);word-break:break-all;">로그인 후 표시</code>
+          </div>
+          <div class="rules-box" id="rulesBoxUid">로그인하면 UID 기반 규칙이 생성됩니다.</div>
+          <div class="set-row" style="justify-content:flex-start;gap:8px;">
+            <button class="set-btn" onclick="copyRulesUid()">📋 UID 규칙 복사</button>
+          </div>
+        </div>
       </div>
 
       <!-- AI -->
@@ -1483,6 +1499,11 @@ async function doAuth() {
   btn.disabled = true; const orig = btn.textContent; btn.textContent = '처리 중...';
   try {
     if (authMode === 'signup') {
+      // 소유자 전용 앱: 소유자 이메일로만 가입 허용 (불필요한 계정 생성 차단)
+      if (email !== OWNER_EMAIL.toLowerCase()) {
+        authError('이 플래너는 소유자 전용입니다. 등록된 소유자 이메일로만 가입할 수 있어요.');
+        return;
+      }
       const pw2 = document.getElementById('loginPw2').value;
       if (pw.length < 6) { authError('비밀번호는 6자 이상이어야 합니다.'); return; }
       if (pw !== pw2) { authError('비밀번호 확인이 일치하지 않습니다.'); return; }
@@ -1516,6 +1537,14 @@ function doLogout() {
 
 // 로그인 성공 시 앱 표시 + 데이터 로드 (중복 로드 방지)
 function enterApp(user) {
+  // 소유자 전용: 다른 이메일로 로그인하면 앱을 열지 않고 명확히 거부
+  // (규칙상 데이터도 안 보이므로, 빈 화면 대신 이유를 알려줌)
+  if (user.email && user.email.toLowerCase() !== OWNER_EMAIL.toLowerCase()) {
+    const em = user.email;
+    if (window.firebase && firebase.auth) firebase.auth().signOut().catch(()=>{});
+    setTimeout(() => authError('이 계정(' + em + ')은 접근 권한이 없습니다. 소유자 계정으로 로그인하세요.'), 300);
+    return;
+  }
   currentUser = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
@@ -1798,7 +1827,9 @@ function attachDataListener() {
     remoteSnapshot = data;
     document.querySelectorAll('[data-key]').forEach(el => {
       if (document.activeElement === el) return;   // 지금 편집 중인 칸은 덮어쓰지 않음
-      const v = data[sanitizeKey(el.dataset.key)];
+      const sk = sanitizeKey(el.dataset.key);
+      if (sk in pendingUpdates) return;            // 아직 서버에 안 올라간 로컬 편집은 보존
+      const v = data[sk];
       const empty = (v === undefined || v === null);
       applyFieldValue(el, empty ? '' : v);         // 원격에서 지워졌으면 화면도 비움
       try {
@@ -1875,14 +1906,34 @@ function scheduleFlush(delay) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(flushUpdates, delay || 350);
 }
+let flushRetryTimer = null;
+let flushRetryDelay = 2000;
 function flushUpdates() {
   if (!fbReady || !fbDB) return;
   const updates = pendingUpdates;
   pendingUpdates = {};
   if (!Object.keys(updates).length) return;
   fbDB.ref('dahoon/data').update(updates)
-    .then(() => setFbStatus('✅ 저장됨', '#4ade80'))
-    .catch(() => { setFbStatus('⚠ 저장 실패', '#f87171'); Object.assign(pendingUpdates, updates); });
+    .then(() => {
+      setFbStatus('✅ 저장됨', '#4ade80');
+      flushRetryDelay = 2000;   // 성공 시 백오프 초기화
+    })
+    .catch((e) => {
+      // 실패분을 다시 큐에 넣되, 그 사이 새로 편집된 값(최신)은 덮어쓰지 않음
+      Object.keys(updates).forEach(k => { if (!(k in pendingUpdates)) pendingUpdates[k] = updates[k]; });
+      const code = (e && (e.code || e.message) || '').toString().toUpperCase();
+      const permission = code.indexOf('PERMISSION') !== -1;
+      if (permission) {
+        // 권한 문제는 재시도해도 소용없음 → 루프 방지 (로그인/규칙 확인 필요)
+        setFbStatus('⚠ 저장 권한 없음', '#f87171');
+        return;
+      }
+      // 네트워크 등 일시적 오류만 자동 재시도 (지수 백오프, 최대 30초)
+      setFbStatus('⚠ 저장 실패 - 재시도 중…', '#fbbf24');
+      clearTimeout(flushRetryTimer);
+      flushRetryTimer = setTimeout(flushUpdates, flushRetryDelay);
+      flushRetryDelay = Math.min(flushRetryDelay * 2, 30000);
+    });
 }
 
 function dbSet(key, val) {
@@ -4034,10 +4085,23 @@ function moveView(idx, dir) {
 function openSettings(tab) {
   syncSettingsUI();
   const rb=document.getElementById('rulesBox'); if(rb) rb.textContent = buildRulesText();
+  refreshUidRule();
   loadAiKeyUI(); updateSecDetail();
   document.getElementById('settingsModal').classList.add('open');
   if (tab) setSettingsTab(tab);
   if (typeof closeMenu === 'function') closeMenu();
+}
+function refreshUidRule() {
+  const uid = currentUser && currentUser.uid ? currentUser.uid : null;
+  const uidBox = document.getElementById('myUidBox');
+  const rbu = document.getElementById('rulesBoxUid');
+  if (uid) {
+    if (uidBox) uidBox.textContent = uid;
+    if (rbu) rbu.textContent = buildRulesTextUid(uid);
+  } else {
+    if (uidBox) uidBox.textContent = '로그인 후 표시';
+    if (rbu) rbu.textContent = '로그인하면 UID 기반 규칙이 생성됩니다.';
+  }
 }
 function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
 function setSettingsTab(tab) {
@@ -4053,9 +4117,19 @@ function resetSettings() {
 function buildRulesText() {
   return '{\n  "rules": {\n    "dahoon": {\n      ".read": "auth != null && auth.token.email == \'' + OWNER_EMAIL + '\'",\n      ".write": "auth != null && auth.token.email == \'' + OWNER_EMAIL + '\'"\n    }\n  }\n}';
 }
+function buildRulesTextUid(uid) {
+  return '{\n  "rules": {\n    "dahoon": {\n      ".read": "auth != null && auth.uid == \'' + uid + '\'",\n      ".write": "auth != null && auth.uid == \'' + uid + '\'"\n    }\n  }\n}';
+}
 function copyRules() {
   const t = buildRulesText();
   if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>toast('규칙을 복사했어요 ✅'), ()=>toast('복사 실패'));
+  else toast('복사를 지원하지 않는 환경이에요');
+}
+function copyRulesUid() {
+  const uid = currentUser && currentUser.uid ? currentUser.uid : null;
+  if (!uid) { toast('먼저 로그인해 주세요'); return; }
+  const t = buildRulesTextUid(uid);
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>toast('UID 규칙을 복사했어요 ✅'), ()=>toast('복사 실패'));
   else toast('복사를 지원하지 않는 환경이에요');
 }
 function updateSecDetail() {
