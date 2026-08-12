@@ -2,12 +2,15 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Da Hoon">
 <meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Da hoon Planner</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -448,6 +451,15 @@ input[type=checkbox] { accent-color:var(--accent); }
   .login-card { width: 92vw; padding: 32px 24px 28px; }
 }
 
+/* 태블릿 (769~1024px): 데스크톱 사이드바 유지 + 주간 그리드 2열로 가독성 확보 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .week-grid { grid-template-columns: repeat(2, 1fr); }
+  .top-section { grid-template-columns: 1fr 1fr; }
+  .month-grid { grid-auto-rows: 120px; }
+  .modal-content { width: 80% !important; }
+  .day { min-height: 200px; }
+}
+
 @media (max-width: 480px) {
   .month-grid {
     grid-auto-rows: 60px !important;
@@ -455,6 +467,161 @@ input[type=checkbox] { accent-color:var(--accent); }
     font-size: 10px;
   }
   .main { padding: 10px 8px; padding-top: 52px; padding-bottom: 72px; }
+}
+
+/* ── 삭제 복구 배너 / 미니 토스트 ── */
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 24px);
+  display: flex; align-items: center; gap: 14px;
+  background: #1e293b;
+  border: 1px solid rgba(59,130,246,0.35);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  color: var(--text);
+  padding: 12px 14px 12px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  z-index: 300;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  max-width: 92vw;
+}
+.undo-toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.undo-toast button {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif; font-weight: 500; white-space: nowrap;
+}
+.undo-toast button:hover { background: var(--accent2); }
+
+.mini-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  transform: translate(-50%, 24px);
+  background: rgba(15,23,42,0.96);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  padding: 10px 18px; border-radius: 10px; font-size: 13px;
+  z-index: 300; opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+}
+.mini-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 768px) {
+  .undo-toast, .mini-toast { bottom: calc(70px + env(safe-area-inset-bottom)); }
+}
+
+/* ══════════════════════════════════════
+   ⚙ 사용자 커스터마이징 (테마/크기/밀도)
+══════════════════════════════════════ */
+/* 글자 크기(줌) — 콘텐츠 영역에 적용 */
+.main { zoom: var(--ui-zoom, 1); }
+/* 카드 모서리 / 여백 (설정으로 조절) */
+.day, .box { border-radius: var(--card-radius, 10px); padding: var(--card-pad, 12px); }
+.box { padding: var(--box-pad, 14px); }
+.week-grid { gap: var(--grid-gap, 12px); }
+
+/* 데스크톱 주간 열 수 선택 */
+@media (min-width: 1025px) {
+  body.wk-cols-4 .week-grid { grid-template-columns: repeat(4, 1fr); }
+  body.wk-cols-3 .week-grid { grid-template-columns: repeat(3, 1fr); }
+  body.wk-cols-2 .week-grid { grid-template-columns: repeat(2, 1fr); }
+  body.wk-cols-1 .week-grid { grid-template-columns: 1fr; }
+}
+
+/* 라이트 테마 (베타) — 토큰 + 주요 표면/텍스트 보정 */
+body.theme-light {
+  --bg: #eef2f7; --panel: #ffffff; --panel2: #f1f5f9;
+  --text: #0f172a; --muted: #64748b; --glow: rgba(59,130,246,0.25);
+}
+body.theme-light { background: var(--bg); color: var(--text); }
+body.theme-light .menu { background: #ffffff; border-right: 1px solid #e2e8f0; }
+body.theme-light .day, body.theme-light .box { background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15,23,42,0.05); }
+body.theme-light textarea, body.theme-light input, body.theme-light select { color: #0f172a; }
+body.theme-light textarea::placeholder, body.theme-light input::placeholder { color: #94a3b8; }
+body.theme-light select { background: #f8fafc; border-color: #cbd5e1; }
+body.theme-light .day b { color: #0f172a; }
+body.theme-light .time { color: #64748b; }
+body.theme-light .modal-content { background: #ffffff; border: 1px solid #e2e8f0; }
+body.theme-light .modal textarea { background: #f8fafc; color: #0f172a; }
+body.theme-light .bottom-nav { background: rgba(255,255,255,0.97); border-top: 1px solid #e2e8f0; }
+body.theme-light .hamburger { background: rgba(59,130,246,0.12); }
+body.theme-light .settings-panel { background: #ffffff; color: #0f172a; }
+body.theme-light .set-row { border-bottom: 1px solid #eef2f7; }
+body.theme-light .set-seg button { color: #475569; }
+
+/* ── 하단 네비게이션 버튼 (동적 렌더링) ── */
+.bottom-nav .bnav-btn { flex: 1; }
+
+/* ══════════════════════════════════════
+   ⚙ 설정 패널
+══════════════════════════════════════ */
+.settings-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center; z-index: 400;
+  backdrop-filter: blur(4px);
+}
+.settings-overlay.open { display: flex; }
+.settings-panel {
+  background: var(--panel); color: var(--text);
+  width: 560px; max-width: 94vw; max-height: 88vh; overflow-y: auto;
+  border-radius: 16px; border: 1px solid rgba(59,130,246,0.2);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.settings-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; position: sticky; top: 0; z-index: 2;
+  background: var(--panel); border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.settings-head h2 { font-size: 16px; color: var(--accent2); font-family: 'Orbitron', sans-serif; letter-spacing: 1px; }
+.settings-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
+.settings-tabs { display: flex; gap: 4px; padding: 10px 16px 0; flex-wrap: wrap; position: sticky; top: 53px; background: var(--panel); z-index: 1; }
+.settings-tab {
+  background: transparent; border: 1px solid rgba(255,255,255,0.08); color: var(--muted);
+  border-radius: 8px 8px 0 0; padding: 8px 14px; font-size: 12px; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.settings-tab.active { background: rgba(59,130,246,0.15); color: var(--accent2); border-color: rgba(59,130,246,0.3); }
+.settings-body { padding: 16px 20px 24px; }
+.settings-section { display: none; }
+.settings-section.active { display: block; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+.set-row:last-child { border-bottom: none; }
+.set-label { font-size: 13px; color: var(--text); }
+.set-label small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.set-seg { display: flex; gap: 4px; background: rgba(255,255,255,0.04); border-radius: 8px; padding: 3px; flex-wrap: wrap; }
+.set-seg button {
+  background: transparent; border: none; color: var(--muted); border-radius: 6px;
+  padding: 6px 12px; font-size: 12px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+}
+.set-seg button.active { background: var(--accent); color: #fff; }
+.set-swatches { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+.swatch.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.set-btn {
+  background: var(--accent); border: none; color: #fff; border-radius: 8px;
+  padding: 9px 16px; font-size: 13px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+}
+.set-btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--text); }
+.set-btn.danger { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); color: #f87171; }
+.set-range { width: 160px; accent-color: var(--accent); }
+.view-order-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
+}
+.view-order-item .vo-name { flex: 1; font-size: 13px; }
+.view-order-item button { background: rgba(255,255,255,0.06); border: none; color: var(--text); border-radius: 6px; width: 30px; height: 30px; cursor: pointer; font-size: 14px; }
+.view-order-item.hidden-view { opacity: 0.45; }
+.rules-box {
+  background: #0b1220; color: #cbd5e1; border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 8px; padding: 12px; font-family: monospace; font-size: 11px;
+  white-space: pre; overflow-x: auto; margin: 8px 0;
+}
+@media (max-width: 768px) {
+  .settings-panel { width: 100%; max-width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
 }
 
 </style>
@@ -470,65 +637,27 @@ input[type=checkbox] { accent-color:var(--accent); }
     <div class="login-title">DA HOON</div>
     <div class="login-sub">PERSONAL PLANNER SYSTEM</div>
     <div class="login-field">
-      <label>아이디</label>
-      <input type="text" id="loginId" placeholder="아이디를 입력하세요" />
+      <label>이메일</label>
+      <input type="email" id="loginEmail" placeholder="이메일 주소" autocomplete="username" />
     </div>
     <div class="login-field">
       <label>비밀번호</label>
-      <input type="password" id="loginPw" placeholder="비밀번호를 입력하세요" onkeydown="if(event.key==='Enter')doLogin()" />
+      <input type="password" id="loginPw" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" onkeydown="if(event.key==='Enter')doAuth()" />
+    </div>
+    <div class="login-field" id="signupConfirmField" style="display:none;">
+      <label>비밀번호 확인</label>
+      <input type="password" id="loginPw2" placeholder="비밀번호 다시 입력" autocomplete="new-password" onkeydown="if(event.key==='Enter')doAuth()" />
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
       <input type="checkbox" id="autoLoginCheck" checked style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;" />
       <label for="autoLoginCheck" style="font-size:12px;color:rgba(255,255,255,0.45);cursor:pointer;user-select:none;">로그인 상태 유지</label>
     </div>
-    <button class="login-btn" onclick="doLogin()">로그인</button>
+    <button class="login-btn" id="authBtn" onclick="doAuth()">로그인</button>
     <div class="login-error" id="loginError"></div>
     <div style="display:flex;justify-content:center;gap:18px;margin-top:14px;">
-      <button onclick="showFindId()" style="background:none;border:none;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:3px;">아이디 찾기</button>
+      <button onclick="toggleAuthMode()" id="authToggle" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:3px;">처음이신가요? 회원가입</button>
       <span style="color:rgba(255,255,255,0.15);font-size:11px;">|</span>
-      <button onclick="showFindPw()" style="background:none;border:none;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:3px;">비밀번호 찾기</button>
-    </div>
-  </div>
-</div>
-
-<!-- 아이디 찾기 모달 -->
-<div id="findIdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:#0c1829;border:1px solid rgba(59,130,246,0.3);border-radius:14px;padding:28px;width:340px;max-width:90vw;">
-    <h3 style="color:var(--accent2);margin-bottom:4px;font-size:15px;">🔍 아이디 찾기</h3>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:18px;">등록된 힌트로 아이디를 확인하세요</p>
-    <div style="margin-bottom:12px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">생년월일 (예: 19901225)</div>
-      <input id="findIdBirth" type="text" placeholder="생년월일 8자리" maxlength="8"
-        style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:white;font-size:13px;outline:none;box-sizing:border-box;" />
-    </div>
-    <div id="findIdResult" style="padding:10px 14px;background:rgba(59,130,246,0.08);border-radius:8px;font-size:13px;color:#60a5fa;display:none;margin-bottom:12px;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button onclick="closeFindId()" style="padding:8px 16px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
-      <button onclick="doFindId()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:8px;color:white;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">확인</button>
-    </div>
-  </div>
-</div>
-
-<!-- 비밀번호 찾기 모달 -->
-<div id="findPwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:#0c1829;border:1px solid rgba(59,130,246,0.3);border-radius:14px;padding:28px;width:340px;max-width:90vw;">
-    <h3 style="color:var(--accent2);margin-bottom:4px;font-size:15px;">🔑 비밀번호 찾기</h3>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:18px;">아이디와 힌트 정보로 비밀번호를 확인하세요</p>
-    <div style="margin-bottom:10px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">아이디</div>
-      <input id="findPwId" type="text" placeholder="아이디 입력"
-        style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:white;font-size:13px;outline:none;box-sizing:border-box;" />
-    </div>
-    <div style="margin-bottom:12px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">생년월일 (예: 19901225)</div>
-      <input id="findPwBirth" type="text" placeholder="생년월일 8자리" maxlength="8"
-        style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:white;font-size:13px;outline:none;box-sizing:border-box;"
-        onkeydown="if(event.key==='Enter')doFindPw()" />
-    </div>
-    <div id="findPwResult" style="padding:10px 14px;background:rgba(59,130,246,0.08);border-radius:8px;font-size:13px;color:#60a5fa;display:none;margin-bottom:12px;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button onclick="closeFindPw()" style="padding:8px 16px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
-      <button onclick="doFindPw()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:8px;color:white;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">확인</button>
+      <button onclick="doPasswordReset()" style="background:none;border:none;color:rgba(255,255,255,0.35);font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.5px;text-decoration:underline;text-underline-offset:3px;">비밀번호 재설정</button>
     </div>
   </div>
 </div>
@@ -546,21 +675,25 @@ input[type=checkbox] { accent-color:var(--accent); }
       <div class="user-dot"></div>
       <span id="userLabel">다훈</span>
     </div>
-    <button onclick="showView('weekly')">📅 Weekly</button>
-    <button onclick="showView('monthly')">📆 Monthly</button>
-    <button onclick="showView('ledger')">💰 가계부</button>
-    <button onclick="showView('invest')">📈 투자</button>
-    <button onclick="showView('wish')">🛒 살 품목</button>
+    <div id="menuViews"><!-- 뷰 버튼은 설정(표시/순서)에 따라 동적 렌더링 --></div>
+    <button onclick="openSettings()">⚙ 설정 / 꾸미기</button>
+    <button id="installBtn" onclick="installApp()" style="display:none;">📲 앱 설치</button>
     <div class="menu-spacer"></div>
 
     <div style="margin-bottom:6px;">
       <div style="font-size:10px;color:var(--muted);margin-bottom:5px;letter-spacing:1px;">☁ FIREBASE 동기화</div>
       <div id="fbStatus" style="font-size:11px;color:var(--muted);text-align:center;padding:6px;background:rgba(59,130,246,0.08);border-radius:6px;">대기중...</div>
+      <div id="secBadge" style="font-size:10px;color:var(--muted);text-align:center;padding:5px;margin-top:4px;background:rgba(255,255,255,0.03);border-radius:6px;cursor:pointer;" onclick="checkDbSecurity()" title="다시 확인">⚪ 보안: 확인 중...</div>
     </div>
     <button class="logout-btn" onclick="doLogout()">⏻ 로그아웃</button>
   </div>
 
   <div class="main">
+    <!-- 보안 경고 배너 (DB가 전체 공개일 때만 표시) -->
+    <div id="secBanner" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+      <span style="font-size:13px;color:#fca5a5;">🔴 <b>보안 경고:</b> 데이터베이스가 인증 없이 외부에 공개되어 있습니다. 보안 규칙을 적용하세요.</span>
+      <button onclick="openSettings('security')" style="margin-left:auto;background:#ef4444;border:none;color:#fff;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">해결 방법 보기</button>
+    </div>
     <div id="weeklyView">
       <!-- PC: 인쇄 버튼 포함 헤더 -->
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:6px;position:relative;">
@@ -1148,62 +1281,251 @@ input[type=checkbox] { accent-color:var(--accent); }
 }
 </style>
 
-<script>
-// ── AUTH ──
-const USERS = { 'jdh0625': 'jdh24682147!' };
-let currentUser = null;
+<!-- 하단 네비게이션 (모바일) - 설정에 따라 동적 렌더링 -->
+<nav class="bottom-nav" id="bottomNav"></nav>
 
-function doLogin(id, pw) {
-  // 자동 로그인 호출 시 파라미터로 받고, 아니면 input에서 읽기
-  if (!id) id = document.getElementById('loginId').value.trim();
-  if (!pw) pw = document.getElementById('loginPw').value;
-  if (USERS[id] && USERS[id] === pw) {
-    currentUser = id;
-    // 로그인 상태 localStorage에 저장 (자동 로그인)
-    const keepLogin = document.getElementById('autoLoginCheck');
-    if (!keepLogin || keepLogin.checked) {
-      localStorage.setItem('dahoon_auto_login', JSON.stringify({ id, pw, ts: Date.now() }));
+<!-- ⚙ 설정 / 꾸미기 패널 -->
+<div class="settings-overlay" id="settingsModal">
+  <div class="settings-panel">
+    <div class="settings-head">
+      <h2>⚙ 설정 / 꾸미기</h2>
+      <button class="settings-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-tabs">
+      <button class="settings-tab active" data-tab="appearance" onclick="setSettingsTab('appearance')">🎨 꾸미기</button>
+      <button class="settings-tab" data-tab="layout" onclick="setSettingsTab('layout')">📐 화면 구성</button>
+      <button class="settings-tab" data-tab="data" onclick="setSettingsTab('data')">💾 데이터</button>
+      <button class="settings-tab" data-tab="security" onclick="setSettingsTab('security')">🔒 보안</button>
+      <button class="settings-tab" data-tab="ai" onclick="setSettingsTab('ai')">🤖 AI</button>
+    </div>
+    <div class="settings-body">
+
+      <!-- 꾸미기 -->
+      <div class="settings-section active" data-sec="appearance">
+        <div class="set-row">
+          <div class="set-label">테마<small>밝은 테마는 베타입니다</small></div>
+          <div class="set-seg" id="segTheme">
+            <button data-val="dark" onclick="setSetting('theme','dark')">🌙 다크</button>
+            <button data-val="light" onclick="setSetting('theme','light')">☀ 라이트</button>
+          </div>
+        </div>
+        <div class="set-row">
+          <div class="set-label">강조 색상<small>버튼·포인트 색</small></div>
+          <div class="set-swatches" id="accentSwatches"></div>
+        </div>
+        <div class="set-row">
+          <div class="set-label">배경 톤</div>
+          <div class="set-swatches" id="bgSwatches"></div>
+        </div>
+        <div class="set-row">
+          <div class="set-label">글자 크기<small><span id="scaleLabel">100%</span></small></div>
+          <input type="range" class="set-range" id="scaleRange" min="80" max="140" step="5" oninput="setSetting('scale', +this.value)">
+        </div>
+        <div class="set-row">
+          <div class="set-label">카드 모서리<small><span id="radiusLabel">10px</span></small></div>
+          <input type="range" class="set-range" id="radiusRange" min="0" max="20" step="1" oninput="setSetting('radius', +this.value)">
+        </div>
+        <div class="set-row">
+          <div class="set-label">여백 밀도</div>
+          <div class="set-seg" id="segDensity">
+            <button data-val="compact" onclick="setSetting('density','compact')">촘촘</button>
+            <button data-val="comfortable" onclick="setSetting('density','comfortable')">보통</button>
+            <button data-val="roomy" onclick="setSetting('density','roomy')">넉넉</button>
+          </div>
+        </div>
+        <div class="set-row">
+          <button class="set-btn ghost" onclick="resetSettings()">기본값으로 초기화</button>
+        </div>
+      </div>
+
+      <!-- 화면 구성 -->
+      <div class="settings-section" data-sec="layout">
+        <div class="set-row">
+          <div class="set-label">데스크톱 주간 열 수<small>넓은 화면에서 요일 배치</small></div>
+          <div class="set-seg" id="segWkCols">
+            <button data-val="7" onclick="setSetting('weekCols','7')">7</button>
+            <button data-val="4" onclick="setSetting('weekCols','4')">4</button>
+            <button data-val="3" onclick="setSetting('weekCols','3')">3</button>
+            <button data-val="2" onclick="setSetting('weekCols','2')">2</button>
+          </div>
+        </div>
+        <div class="set-row" style="display:block;">
+          <div class="set-label" style="margin-bottom:10px;">메뉴 표시 · 순서<small>눈 아이콘으로 숨기고, 화살표로 순서 변경</small></div>
+          <div id="viewOrderList"></div>
+        </div>
+      </div>
+
+      <!-- 데이터 -->
+      <div class="settings-section" data-sec="data">
+        <div class="set-row">
+          <div class="set-label">데이터 내보내기<small>전체 백업 파일(JSON) 저장</small></div>
+          <button class="set-btn" onclick="exportData()">⬇ 내보내기</button>
+        </div>
+        <div class="set-row">
+          <div class="set-label">데이터 가져오기<small>백업 JSON에서 복원 (덮어쓰기)</small></div>
+          <button class="set-btn ghost" onclick="document.getElementById('importFile').click()">⬆ 가져오기</button>
+          <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this.files[0])">
+        </div>
+        <div class="set-row">
+          <div class="set-label">구버전 데이터 정리<small>예전 형식의 잔여 키를 DB에서 제거 (되돌릴 수 없음)</small></div>
+          <button class="set-btn danger" onclick="cleanupLegacyKeys()">🧹 정리</button>
+        </div>
+      </div>
+
+      <!-- 보안 -->
+      <div class="settings-section" data-sec="security">
+        <div class="set-row">
+          <div class="set-label">현재 보안 상태</div>
+          <div id="secDetail" style="font-size:13px;">확인 중...</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-top:8px;">
+          <b style="color:var(--text);">보안 적용 방법 (약 3분, 최초 1회)</b><br>
+          1. 아래 규칙을 복사합니다.<br>
+          2. Firebase 콘솔 → Realtime Database → <b>규칙(Rules)</b> 탭을 엽니다.<br>
+          3. 전체를 지우고 붙여넣은 뒤 <b>게시(Publish)</b>를 누릅니다.<br>
+          4. Authentication → Sign-in method 에서 <b>이메일/비밀번호</b>를 사용 설정합니다.<br>
+          5. 이 앱에서 <b>jftgj00625@gmail.com</b> 로 회원가입/로그인하면 끝!
+        </div>
+        <div class="rules-box" id="rulesBox"></div>
+        <div class="set-row" style="justify-content:flex-start;gap:8px;">
+          <button class="set-btn" onclick="copyRules()">📋 규칙 복사</button>
+          <a class="set-btn ghost" href="https://console.firebase.google.com/project/dahoon-planner/database/dahoon-planner-default-rtdb/rules" target="_blank" rel="noopener" style="text-decoration:none;">🔗 콘솔 열기</a>
+          <button class="set-btn ghost" onclick="checkDbSecurity()">🔄 다시 확인</button>
+        </div>
+      </div>
+
+      <!-- AI -->
+      <div class="settings-section" data-sec="ai">
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;">
+          회의록 자동 정리에 Anthropic API 키가 필요합니다. 키는 <b>이 기기(브라우저)에만</b> 저장되며 동기화되지 않습니다.
+          <br>브라우저에 키를 저장하면 이 기기를 쓰는 사람이 볼 수 있으니 공용 PC에서는 입력하지 마세요.
+        </div>
+        <div class="set-row">
+          <div class="set-label">Anthropic API 키</div>
+          <input type="password" id="aiKeyInput" placeholder="sk-ant-..." style="flex:1;min-width:180px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:var(--text);font-size:13px;">
+        </div>
+        <div class="set-row" style="justify-content:flex-start;gap:8px;">
+          <button class="set-btn" onclick="saveAiKey()">저장</button>
+          <button class="set-btn ghost" onclick="clearAiKey()">삭제</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── AUTH (Firebase 이메일/비밀번호 인증) ──
+// ★ 이전의 하드코딩된 비밀번호/생년월일 방식 제거 → 실제 인증으로 교체
+const OWNER_EMAIL = 'jftgj00625@gmail.com';   // 데이터 접근을 허용할 소유자 이메일 (보안 규칙과 일치시킬 것)
+let currentUser = null;
+let authMode = 'login';   // 'login' | 'signup'
+let appDataLoaded = false;
+
+function authError(msg) {
+  const err = document.getElementById('loginError');
+  if (err) { err.textContent = msg; setTimeout(() => { if (err.textContent === msg) err.textContent = ''; }, 5000); }
+}
+
+// 로그인/회원가입 모드 전환
+function toggleAuthMode() {
+  authMode = (authMode === 'login') ? 'signup' : 'login';
+  const isSignup = authMode === 'signup';
+  document.getElementById('signupConfirmField').style.display = isSignup ? 'block' : 'none';
+  document.getElementById('authBtn').textContent = isSignup ? '회원가입' : '로그인';
+  document.getElementById('authToggle').textContent = isSignup ? '이미 계정이 있어요 · 로그인' : '처음이신가요? 회원가입';
+  document.getElementById('loginError').textContent = '';
+}
+
+function friendlyAuthError(code) {
+  const map = {
+    'auth/invalid-email': '이메일 형식이 올바르지 않습니다.',
+    'auth/user-not-found': '가입되지 않은 이메일입니다. 회원가입을 먼저 해주세요.',
+    'auth/wrong-password': '비밀번호가 올바르지 않습니다.',
+    'auth/invalid-credential': '이메일 또는 비밀번호가 올바르지 않습니다.',
+    'auth/email-already-in-use': '이미 가입된 이메일입니다. 로그인해 주세요.',
+    'auth/weak-password': '비밀번호는 6자 이상이어야 합니다.',
+    'auth/too-many-requests': '시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+    'auth/operation-not-allowed': 'Firebase 콘솔에서 이메일/비밀번호 로그인을 먼저 활성화해야 합니다. (설정 > 보안 참고)',
+    'auth/configuration-not-found': 'Firebase 콘솔 > Authentication 에서 이메일/비밀번호 로그인을 켜주세요. (설정 > 보안 참고)',
+    'auth/network-request-failed': '네트워크 오류입니다. 연결을 확인해 주세요.',
+  };
+  return map[code] || ('오류: ' + code);
+}
+
+async function doAuth() {
+  if (!window.firebase || !firebase.auth) { authError('인증 모듈 로딩 중입니다. 잠시 후 다시 시도해 주세요.'); return; }
+  const email = (document.getElementById('loginEmail').value || '').trim();
+  const pw = document.getElementById('loginPw').value;
+  if (!email || !pw) { authError('이메일과 비밀번호를 입력해 주세요.'); return; }
+
+  // 로그인 유지 여부 → 지속성 설정
+  const keep = document.getElementById('autoLoginCheck');
+  const persistence = (!keep || keep.checked)
+    ? firebase.auth.Auth.Persistence.LOCAL
+    : firebase.auth.Auth.Persistence.SESSION;
+  try { await firebase.auth().setPersistence(persistence); } catch(e) {}
+
+  const btn = document.getElementById('authBtn');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = '처리 중...';
+  try {
+    if (authMode === 'signup') {
+      const pw2 = document.getElementById('loginPw2').value;
+      if (pw.length < 6) { authError('비밀번호는 6자 이상이어야 합니다.'); return; }
+      if (pw !== pw2) { authError('비밀번호 확인이 일치하지 않습니다.'); return; }
+      await firebase.auth().createUserWithEmailAndPassword(email, pw);
+      // onAuthStateChanged 가 나머지를 처리
+    } else {
+      await firebase.auth().signInWithEmailAndPassword(email, pw);
     }
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('app').classList.add('active');
-    document.getElementById('userLabel').textContent = id;
-    openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); });
-  } else {
-    const err = document.getElementById('loginError');
-    if (err) {
-      err.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
-      document.getElementById('loginPw').value = '';
-      setTimeout(() => err.textContent = '', 3000);
-    }
+  } catch(e) {
+    authError(friendlyAuthError(e.code || ''));
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
   }
 }
 
-function doLogout() {
-  currentUser = null;
-  // 자동 로그인 정보 삭제
-  localStorage.removeItem('dahoon_auto_login');
-  document.getElementById('app').classList.remove('active');
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('loginId').value = '';
-  document.getElementById('loginPw').value = '';
+async function doPasswordReset() {
+  const email = (document.getElementById('loginEmail').value || '').trim();
+  if (!email) { authError('재설정 메일을 받을 이메일을 입력해 주세요.'); return; }
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    authError('');
+    const err = document.getElementById('loginError');
+    if (err) { err.style.color = '#4ade80'; err.textContent = '✅ 재설정 메일을 보냈습니다. 메일함을 확인하세요.';
+      setTimeout(() => { err.textContent = ''; err.style.color = ''; }, 6000); }
+  } catch(e) { authError(friendlyAuthError(e.code || '')); }
 }
 
-// 자동 로그인 체크 (페이지 로드 시)
-function checkAutoLogin() {
-  try {
-    const saved = localStorage.getItem('dahoon_auto_login');
-    if (!saved) return;
-    const { id, pw, ts } = JSON.parse(saved);
-    // 30일 이내 로그인 유지
-    const days30 = 30 * 24 * 60 * 60 * 1000;
-    if (Date.now() - ts > days30) {
-      localStorage.removeItem('dahoon_auto_login');
-      return;
-    }
-    if (USERS[id] && USERS[id] === pw) {
-      doLogin(id, pw);
-    }
-  } catch(e) {}
+function doLogout() {
+  if (window.firebase && firebase.auth) firebase.auth().signOut().catch(()=>{});
+}
+
+// 로그인 성공 시 앱 표시 + 데이터 로드 (중복 로드 방지)
+function enterApp(user) {
+  currentUser = user;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  const label = document.getElementById('userLabel');
+  if (label) label.textContent = user.email ? user.email.split('@')[0] : '사용자';
+  attachDataListener();   // 실시간 동기화는 인증 이후에만
+  if (!appDataLoaded) {
+    appDataLoaded = true;
+    openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
+  }
+  setTimeout(checkDbSecurity, 1500);
+}
+
+function exitApp() {
+  currentUser = null;
+  appDataLoaded = false;
+  detachDataListener();
+  pendingUpdates = {};          // 로그아웃 후 잔여 쓰기 시도 방지
+  clearTimeout(saveTimer);
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('loginScreen').style.display = 'flex';
+  const pw = document.getElementById('loginPw'); if (pw) pw.value = '';
+  const pw2 = document.getElementById('loginPw2'); if (pw2) pw2.value = '';
 }
 
 // ── PLANNER ──
@@ -1351,7 +1673,7 @@ function closeModal() {
   }
   stopCountdown();
   document.getElementById('modal').style.display = 'none';
-  save();
+  flushUpdates();   // 편집한 칸만 즉시 저장 (전체 스냅샷 저장 X)
   currentTextarea = null; currentKey = null;
 }
 
@@ -1423,6 +1745,7 @@ const FB_CONFIG = {
 let fbDB = null;
 let fbReady = false;
 let saveTimer = null;
+let remoteSnapshot = {};   // Firebase에 실제 저장된 최신 데이터 (삭제 판정/내보내기용)
 
 function setFbStatus(msg, color='var(--muted)') {
   const el = document.getElementById('fbStatus');
@@ -1436,21 +1759,13 @@ function initFirebase() {
     fbReady = true;
     setFbStatus('🟢 Firebase 연결됨', '#4ade80');
 
-    // 실시간 변경사항 수신 (다른 기기에서 저장하면 자동 반영)
-    fbDB.ref('dahoon/data').on('value', snapshot => {
-      const data = snapshot.val();
-      if (!data) return;
-      document.querySelectorAll('[data-key]').forEach(el => {
-        const v = data[el.dataset.key.replace(/[.#$\[\]]/g, '_')];
-        if (v !== undefined && v !== null && v !== '') {
-          const wasReadonly = el.hasAttribute('readonly');
-          if (wasReadonly) el.removeAttribute('readonly');
-          if (el.value !== v) el.value = v;
-          if (wasReadonly) el.setAttribute('readonly', true);
-          try { localStorage.setItem('dahoon_' + el.dataset.key, v); } catch(e) {}
-        }
+    // 인증 상태 감지: 로그인/로그아웃 시 앱 화면 전환 + 데이터 로드
+    if (firebase.auth) {
+      firebase.auth().onAuthStateChanged(user => {
+        if (user) enterApp(user);
+        else exitApp();
       });
-    });
+    }
   } catch(e) {
     fbReady = false;
     setFbStatus('⚠ 오프라인 모드', '#fbbf24');
@@ -1458,27 +1773,122 @@ function initFirebase() {
   }
 }
 
+// ── 실시간 동기화 리스너 (로그인 후에만 등록해야 보안 규칙과 공존 가능) ──
+// 규칙 적용 후 인증 전에 등록하면 permission_denied로 리스너가 영구 취소되므로
+// enterApp에서 attach / exitApp에서 detach 한다.
+let dataListenerRef = null;
+function attachDataListener() {
+  if (!fbReady || !fbDB || dataListenerRef) return;
+  dataListenerRef = fbDB.ref('dahoon/data');
+  dataListenerRef.on('value', snapshot => {
+    const data = snapshot.val() || {};
+    remoteSnapshot = data;
+    document.querySelectorAll('[data-key]').forEach(el => {
+      if (document.activeElement === el) return;   // 지금 편집 중인 칸은 덮어쓰지 않음
+      const v = data[sanitizeKey(el.dataset.key)];
+      const empty = (v === undefined || v === null);
+      applyFieldValue(el, empty ? '' : v);         // 원격에서 지워졌으면 화면도 비움
+      try {
+        if (empty || v === '') localStorage.removeItem('dahoon_' + el.dataset.key);
+        else localStorage.setItem('dahoon_' + el.dataset.key, v);
+      } catch(e) {}
+    });
+  }, err => {
+    // 권한 오류 등으로 취소되면 다음 로그인 때 다시 붙일 수 있게 초기화
+    dataListenerRef = null;
+  });
+}
+function detachDataListener() {
+  if (dataListenerRef) { try { dataListenerRef.off(); } catch(e) {} dataListenerRef = null; }
+}
+
+// ── 보안 상태 점검: 인증 없이 DB가 읽히는지(=규칙 미적용) 확인 ──
+let dbSecure = null;   // true=보안 적용됨, false=전체 공개(위험), null=미확인
+async function checkDbSecurity() {
+  const base = FB_CONFIG.databaseURL.replace(/\/$/, '');
+  try {
+    // 인증 토큰 없이 접근 시도 → 성공하면 규칙이 열려 있는 것
+    const res = await fetch(base + '/dahoon/data.json?shallow=true', { cache: 'no-store' });
+    dbSecure = !res.ok;   // 401/403 이면 안전, 200 이면 위험
+  } catch(e) {
+    dbSecure = null;      // 확인 불가 (네트워크 등)
+  }
+  updateSecurityUI();
+  return dbSecure;
+}
+
+function updateSecurityUI() {
+  const badge = document.getElementById('secBadge');
+  const banner = document.getElementById('secBanner');
+  if (dbSecure === false) {
+    if (badge) { badge.textContent = '🔴 보안: 전체 공개 (위험)'; badge.style.color = '#f87171'; }
+    if (banner) banner.style.display = 'flex';
+  } else if (dbSecure === true) {
+    if (badge) { badge.textContent = '🟢 보안: 규칙 적용됨'; badge.style.color = '#4ade80'; }
+    if (banner) banner.style.display = 'none';
+  } else {
+    if (badge) { badge.textContent = '⚪ 보안: 확인 불가'; badge.style.color = 'var(--muted)'; }
+    if (banner) banner.style.display = 'none';
+  }
+  if (typeof updateSecDetail === 'function') updateSecDetail();
+}
+
 function sanitizeKey(key) {
   return key.replace(/[.#$\[\]]/g, '_');
 }
 
+// 입력칸 ↔ 저장값 변환 (체크박스/셀렉트/텍스트를 정확히 처리)
+function readFieldValue(el) {
+  if (el.type === 'checkbox') return el.checked ? '1' : '';
+  return el.value;
+}
+function applyFieldValue(el, v) {
+  if (el.type === 'checkbox') { el.checked = (v === '1' || v === true || v === 'on'); return; }
+  if (el.tagName === 'SELECT') {
+    if (v === '' || v === undefined || v === null) { el.selectedIndex = 0; return; }
+    el.value = v; if (el.selectedIndex < 0) el.selectedIndex = 0; return;
+  }
+  const wasReadonly = el.hasAttribute('readonly');
+  if (wasReadonly) el.removeAttribute('readonly');
+  if (el.value !== v) el.value = v;
+  if (wasReadonly) el.setAttribute('readonly', true);
+}
+
 function openDB() { return Promise.resolve(); }
 
-function dbSet(key, val) {
-  // localStorage 항상 저장 (오프라인 백업)
-  try { localStorage.setItem('dahoon_' + key, val); } catch(e) {}
-  // Firebase 디바운스 저장 (300ms)
-  if (!fbReady) return;
+// ── 변경분만 모아 1회 전송 (전체 DOM 스냅샷 저장을 없애 삭제/저장 경합 제거) ──
+let pendingUpdates = {};
+function scheduleFlush(delay) {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const updates = {};
-    document.querySelectorAll('[data-key]').forEach(el => {
-      updates[sanitizeKey(el.dataset.key)] = el.value;
-    });
-    fbDB.ref('dahoon/data').update(updates)
-      .then(() => setFbStatus('✅ 저장됨', '#4ade80'))
-      .catch(() => setFbStatus('⚠ 저장 실패', '#f87171'));
-  }, 300);
+  saveTimer = setTimeout(flushUpdates, delay || 350);
+}
+function flushUpdates() {
+  if (!fbReady || !fbDB) return;
+  const updates = pendingUpdates;
+  pendingUpdates = {};
+  if (!Object.keys(updates).length) return;
+  fbDB.ref('dahoon/data').update(updates)
+    .then(() => setFbStatus('✅ 저장됨', '#4ade80'))
+    .catch(() => { setFbStatus('⚠ 저장 실패', '#f87171'); Object.assign(pendingUpdates, updates); });
+}
+
+function dbSet(key, val) {
+  const empty = (val === '' || val === null || val === undefined);
+  try {
+    if (empty) localStorage.removeItem('dahoon_' + key);
+    else localStorage.setItem('dahoon_' + key, val);
+  } catch(e) {}
+  if (!fbReady) return;
+  pendingUpdates[sanitizeKey(key)] = empty ? null : val;   // 빈 값은 키 자체를 제거
+  scheduleFlush(350);
+}
+
+// 값 삭제 (해당 키를 DB에서 제거)
+function dbDelete(key) {
+  try { localStorage.removeItem('dahoon_' + key); } catch(e) {}
+  if (!fbReady) return;
+  pendingUpdates[sanitizeKey(key)] = null;
+  scheduleFlush(200);
 }
 
 function dbGet(key) {
@@ -1496,88 +1906,38 @@ function dbGetAll() {
   return Promise.resolve(result);
 }
 
+// 화면의 모든 입력칸을 저장 (변경분 버퍼에 쌓아 1회 전송)
 function save() {
   document.querySelectorAll('[data-key]').forEach(el => {
-    dbSet(el.dataset.key, el.value);
+    dbSet(el.dataset.key, readFieldValue(el));
   });
 }
 
-// ── 구버전 key → 신버전 key 변환 매핑 생성 ──
-// 구버전: w{offset}-{요일}-am/pm
-// 신버전: date-{YYYY-MM-DD}-am/pm
-function buildLegacyKeyMap() {
-  const map = {};
-  const dayNames = ['월','화','수','목','금','토','일'];
-  // -8주 ~ +8주 범위로 매핑 생성
-  for (let offset = -8; offset <= 8; offset++) {
-    const monday = getWeekMonday(offset);
-    dayNames.forEach((d, i) => {
-      const dayDate = new Date(monday);
-      dayDate.setDate(monday.getDate() + i);
-      const dateKey = dateToKey(dayDate);
-      const newBase = `date-${dateKey}`;
-      const oldBase = `w${offset}-${d}`;
-      ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
-        map[sanitizeKey(`${oldBase}-${suffix}`)] = `${newBase}-${suffix}`;
-      });
-    });
-  }
-  return map;
-}
-
 async function load() {
-  // Firebase에서 먼저 불러오기 시도, 실패 시 localStorage 사용
+  // Firebase 우선, 실패 시 localStorage
+  // ★ 구버전 key 복구 로직 제거: 삭제한 주가 다시 살아나던 버그의 원인이었음
   if (fbReady && fbDB) {
     try {
       const snapshot = await fbDB.ref('dahoon/data').once('value');
-      const data = snapshot.val();
-      if (data) {
-        // 구버전 key 복구 매핑
-        const legacyMap = buildLegacyKeyMap();
-
-        document.querySelectorAll('[data-key]').forEach(el => {
-          const sanitized = sanitizeKey(el.dataset.key);
-          let v = data[sanitized];
-
-          // 새 key로 못 찾으면 → 구버전 key로 역매핑해서 찾기
-          if ((v === undefined || v === null || v === '') && el.dataset.key.startsWith('date-')) {
-            // 신버전 key에 해당하는 구버전 key 찾기
-            for (const [oldKey, newKey] of Object.entries(legacyMap)) {
-              if (newKey === el.dataset.key) {
-                const legacyVal = data[oldKey];
-                if (legacyVal !== undefined && legacyVal !== null && legacyVal !== '') {
-                  v = legacyVal;
-                  // 새 key로 마이그레이션 저장
-                  if (fbDB) fbDB.ref('dahoon/data').update({ [sanitizeKey(el.dataset.key)]: v }).catch(()=>{});
-                  try { localStorage.setItem('dahoon_' + el.dataset.key, v); } catch(e) {}
-                }
-                break;
-              }
-            }
-          }
-
-          if (v !== undefined && v !== null && v !== '') {
-            const wasReadonly = el.hasAttribute('readonly');
-            if (wasReadonly) el.removeAttribute('readonly');
-            el.value = v;
-            if (wasReadonly) el.setAttribute('readonly', true);
-            try { localStorage.setItem('dahoon_' + el.dataset.key, v); } catch(e) {}
-          }
-        });
-        return;
-      }
+      const data = snapshot.val() || {};
+      remoteSnapshot = data;
+      document.querySelectorAll('[data-key]').forEach(el => {
+        const v = data[sanitizeKey(el.dataset.key)];
+        const empty = (v === undefined || v === null);
+        applyFieldValue(el, empty ? '' : v);
+        try {
+          if (empty || v === '') localStorage.removeItem('dahoon_' + el.dataset.key);
+          else localStorage.setItem('dahoon_' + el.dataset.key, v);
+        } catch(e) {}
+      });
+      return;
     } catch(e) { console.warn('Firebase load 실패, localStorage 사용'); }
   }
   // localStorage fallback
   const all = await dbGetAll();
   document.querySelectorAll('[data-key]').forEach(el => {
     const v = all[el.dataset.key];
-    if (v !== undefined && v !== null && v !== '') {
-      const wasReadonly = el.hasAttribute('readonly');
-      if (wasReadonly) el.removeAttribute('readonly');
-      el.value = v;
-      if (wasReadonly) el.setAttribute('readonly', true);
-    }
+    applyFieldValue(el, (v === undefined || v === null) ? '' : v);
   });
 }
 
@@ -2294,29 +2654,22 @@ function closeMenu() {
 // 모바일 뷰 전환 (바텀 네비)
 function showViewMobile(v) {
   showView(v);
-  // 바텀 네비 active 상태
-  ['weekly','monthly','ledger','invest','wish'].forEach(name => {
-    const btn = document.getElementById('bnav-' + name);
-    if (btn) btn.classList.toggle('active', name === v);
-  });
   closeMenu();
 }
 
-// 기존 showView에 바텀 네비 동기화 추가
+// 기존 showView에 바텀 네비 active 동기화 추가 (모든 뷰 일괄)
 const _origShowView = showView;
 showView = function(v) {
   _origShowView(v);
-  ['weekly','monthly','ledger'].forEach(name => {
+  ['weekly','monthly','ledger','invest','wish'].forEach(name => {
     const btn = document.getElementById('bnav-' + name);
     if (btn) btn.classList.toggle('active', name === v);
   });
 };
 
-// 스와이프 제스처 (좌우 스와이프로 뷰 전환)
+// 스와이프 제스처 (좌우 스와이프로 뷰 전환) — 설정의 표시/순서를 따름
 (function initSwipe() {
   let startX = 0, startY = 0;
-  const views = ['weekly', 'monthly', 'ledger', 'invest', 'wish'];
-  let curView = 'weekly';
 
   document.addEventListener('touchstart', e => {
     startX = e.touches[0].clientX;
@@ -2328,8 +2681,10 @@ showView = function(v) {
     const dx = e.changedTouches[0].clientX - startX;
     const dy = e.changedTouches[0].clientY - startY;
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return; // 세로 스크롤 제외
-    // 현재 보이는 뷰 파악
-    const cur = views.find(v => !document.getElementById(v+'View').classList.contains('hidden')) || 'weekly';
+    // 설정에서 보이도록 한 뷰만, 사용자가 정한 순서로 순회
+    const views = SETTINGS.viewOrder.filter(v => SETTINGS.views[v]);
+    if (!views.length) return;
+    const cur = views.find(v => { const el = document.getElementById(v+'View'); return el && !el.classList.contains('hidden'); }) || views[0];
     const idx = views.indexOf(cur);
     if (dx < 0 && idx < views.length - 1) showViewMobile(views[idx + 1]); // 왼쪽 → 다음
     if (dx > 0 && idx > 0) showViewMobile(views[idx - 1]); // 오른쪽 → 이전
@@ -2956,58 +3311,8 @@ function saveWishItem() {
   saveWish(); renderWish();
 }
 
-// ── 아이디/비번 찾기 ──
-// 힌트: 등록 생년월일 (jdh0625 → 19750625 가정, 실제값 설정)
-const HINT_BIRTH = '19750625';
-
-function showFindId() {
-  const m = document.getElementById('findIdModal');
-  if (m) { m.style.display = 'flex'; document.getElementById('findIdBirth').value = ''; document.getElementById('findIdResult').style.display = 'none'; }
-}
-function closeFindId() {
-  const m = document.getElementById('findIdModal');
-  if (m) m.style.display = 'none';
-}
-function doFindId() {
-  const birth = document.getElementById('findIdBirth').value.trim();
-  const res = document.getElementById('findIdResult');
-  if (!res) return;
-  res.style.display = 'block';
-  if (birth === HINT_BIRTH) {
-    res.innerHTML = '✅ 아이디: <b style="color:white;">jdh0625</b>';
-    res.style.background = 'rgba(74,222,128,0.1)';
-    res.style.color = '#4ade80';
-  } else {
-    res.innerHTML = '❌ 일치하는 정보가 없습니다.';
-    res.style.background = 'rgba(239,68,68,0.08)';
-    res.style.color = '#f87171';
-  }
-}
-
-function showFindPw() {
-  const m = document.getElementById('findPwModal');
-  if (m) { m.style.display = 'flex'; document.getElementById('findPwId').value = ''; document.getElementById('findPwBirth').value = ''; document.getElementById('findPwResult').style.display = 'none'; }
-}
-function closeFindPw() {
-  const m = document.getElementById('findPwModal');
-  if (m) m.style.display = 'none';
-}
-function doFindPw() {
-  const id    = document.getElementById('findPwId').value.trim();
-  const birth = document.getElementById('findPwBirth').value.trim();
-  const res   = document.getElementById('findPwResult');
-  if (!res) return;
-  res.style.display = 'block';
-  if (USERS[id] && birth === HINT_BIRTH) {
-    res.innerHTML = '✅ 비밀번호: <b style="color:white;">' + USERS[id] + '</b>';
-    res.style.background = 'rgba(74,222,128,0.1)';
-    res.style.color = '#4ade80';
-  } else {
-    res.innerHTML = '❌ 아이디 또는 생년월일이 일치하지 않습니다.';
-    res.style.background = 'rgba(239,68,68,0.08)';
-    res.style.color = '#f87171';
-  }
-}
+// (아이디/비밀번호 찾기 기능 제거: 비밀번호를 화면에 노출하던 보안 취약점.
+//  이제 로그인 화면의 '비밀번호 재설정'으로 Firebase 재설정 메일을 사용)
 
 
 // ── 주간 날짜 직접 설정 ──
@@ -3206,15 +3511,24 @@ async function organizeWithAI(text) {
     document.getElementById('recSaveBtn').style.display = 'block';
   } catch(e) {
     document.getElementById('recResult').textContent = recFullText;
-    document.getElementById('recAiStatus').textContent = '⚠ AI 오류 - 원문 표시';
+    document.getElementById('recAiStatus').textContent = (e && e.message === 'NO_API_KEY')
+      ? '⚠ 설정 > AI 에서 API 키를 먼저 입력하세요 (원문 표시)'
+      : '⚠ AI 오류 - 원문 표시';
     document.getElementById('recSaveBtn').style.display = 'block';
   }
 }
 
 async function callOrganizeAI(text) {
+  const apiKey = localStorage.getItem('dahoon_ai_key');
+  if (!apiKey) { throw new Error('NO_API_KEY'); }
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
@@ -3365,44 +3679,46 @@ function deleteMeetingLog(i) {
 
 
 // ── 한 주 전체 삭제 ──
-function deleteWeekContent() {
-  if (!confirm('이번 주 전체 내용을 삭제할까요?\n삭제하면 복구가 어렵습니다!')) return;
-
-  const monday = getWeekMonday(weekOffset);
-  const updates = {};
-
-  for (let i = 0; i < 7; i++) {
-    const dayDate = new Date(monday);
-    dayDate.setDate(monday.getDate() + i);
-    const dateKey = dateToKey(dayDate);
+// 주어진 날짜 목록의 칸을 스냅샷으로 저장한 뒤 삭제 (복구용 스냅샷 반환)
+function deleteDateKeys(dateKeys, scopeLabel) {
+  const snapshot = {};
+  dateKeys.forEach(dateKey => {
     const weekKey = `date-${dateKey}`;
-
     ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
       const key = `${weekKey}-${suffix}`;
-      try { localStorage.removeItem('dahoon_' + key); } catch(e) {}
-      updates[sanitizeKey(key)] = null;
+      const el = document.querySelector(`[data-key="${key}"]`);
+      snapshot[key] = el ? readFieldValue(el) : (localStorage.getItem('dahoon_' + key) || '');
     });
+  });
 
-    // 화면 초기화
-    const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
-    const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
-    const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
-    const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
-    if (amTa)  amTa.value  = '';
-    if (pmTa)  pmTa.value  = '';
-    if (amSel) amSel.selectedIndex = 0;
-    if (pmSel) pmSel.selectedIndex = 0;
+  // 실제 내용이 있는지 확인 (타입 select 기본값·빈 체크박스는 내용으로 치지 않음)
+  const hasContent = Object.entries(snapshot).some(([k, v]) =>
+    v && v !== '' && !(k.endsWith('-type') && v === '🔵업무'));
+  if (!hasContent) { toast('삭제할 내용이 없습니다.'); return; }
+  if (!confirm(`${scopeLabel} 내용을 삭제할까요?\n삭제 후 15초 안에 '복구'로 되돌릴 수 있어요.`)) return;
+
+  Object.keys(snapshot).forEach(key => {
+    dbDelete(key);
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if (el) {
+      if (el.tagName === 'SELECT') el.selectedIndex = 0;
+      else if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    }
+  });
+  flushUpdates();
+  lastDeleted = { scope: scopeLabel, snapshot };
+  showUndoToast();
+}
+
+function deleteWeekContent() {
+  const monday = getWeekMonday(weekOffset);
+  const keys = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    keys.push(dateToKey(d));
   }
-
-  // Firebase에서도 삭제
-  if (fbReady && fbDB) {
-    fbDB.ref('dahoon/data').update(updates).catch(()=>{});
-  }
-
-  const btn = event.target;
-  const orig = btn.textContent;
-  btn.textContent = '✅ 삭제됨!';
-  setTimeout(() => { btn.textContent = orig; }, 2000);
+  deleteDateKeys(keys, '이번 주 전체');
 }
 
 // ── 일자별 삭제 ──
@@ -3410,31 +3726,44 @@ function deleteDayContent(dateKey) {
   const dayDate = new Date(dateKey);
   const mm = String(dayDate.getMonth()+1).padStart(2,'0');
   const dd = String(dayDate.getDate()).padStart(2,'0');
-  if (!confirm(`${mm}/${dd} 하루 내용을 삭제할까요?`)) return;
+  deleteDateKeys([dateKey], `${mm}/${dd} 하루`);
+}
 
-  const weekKey = `date-${dateKey}`;
-  const updates = {};
-
-  ['am','pm','am-type','pm-type','am-check','pm-check'].forEach(suffix => {
-    const key = `${weekKey}-${suffix}`;
-    try { localStorage.removeItem('dahoon_' + key); } catch(e) {}
-    updates[sanitizeKey(key)] = null;
+// ── 삭제 실행취소 (Undo) ──
+let lastDeleted = null;
+let undoTimer = null;
+function showUndoToast() {
+  let t = document.getElementById('undoToast');
+  if (!t) { t = document.createElement('div'); t.id = 'undoToast'; t.className = 'undo-toast'; document.body.appendChild(t); }
+  t.innerHTML = `<span>🗑 ${lastDeleted.scope} 내용을 삭제했어요</span><button onclick="undoDelete()">복구</button>`;
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { t.classList.remove('show'); lastDeleted = null; }, 15000);
+}
+function undoDelete() {
+  if (!lastDeleted) return;
+  Object.entries(lastDeleted.snapshot).forEach(([key, val]) => {
+    if (val === '' || val === null || val === undefined) return;
+    dbSet(key, val);
+    const el = document.querySelector(`[data-key="${key}"]`);
+    if (el) applyFieldValue(el, val);
   });
+  flushUpdates();
+  clearTimeout(undoTimer);
+  const t = document.getElementById('undoToast');
+  if (t) t.classList.remove('show');
+  lastDeleted = null;
+  toast('복구되었습니다 ✅');
+}
 
-  // 화면 초기화
-  const amTa  = document.querySelector(`[data-key="${weekKey}-am"]`);
-  const pmTa  = document.querySelector(`[data-key="${weekKey}-pm"]`);
-  const amSel = document.querySelector(`[data-key="${weekKey}-am-type"]`);
-  const pmSel = document.querySelector(`[data-key="${weekKey}-pm-type"]`);
-  if (amTa)  amTa.value  = '';
-  if (pmTa)  pmTa.value  = '';
-  if (amSel) amSel.selectedIndex = 0;
-  if (pmSel) pmSel.selectedIndex = 0;
-
-  // Firebase에서도 삭제
-  if (fbReady && fbDB) {
-    fbDB.ref('dahoon/data').update(updates).catch(()=>{});
-  }
+// ── 미니 토스트 ──
+function toast(msg) {
+  let t = document.getElementById('miniToast');
+  if (!t) { t = document.createElement('div'); t.id = 'miniToast'; t.className = 'mini-toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  requestAnimationFrame(() => t.classList.add('show'));
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
 // ── 한 주 내용 복사/붙여넣기 ──
@@ -3472,12 +3801,16 @@ function copyWeekContent() {
   const pasteBtn = document.getElementById('pasteWeekBtn');
   if (pasteBtn) pasteBtn.style.display = 'flex';
 
-  // 피드백
-  const btn = event.target;
-  const orig = btn.textContent;
-  btn.textContent = '✅ 복사됨!';
-  btn.style.color = '#4ade80';
-  setTimeout(() => { btn.textContent = orig; btn.style.color = '#fbbf24'; }, 2000);
+  // 피드백 (window.event 미지원 브라우저에서도 안전하게)
+  const btn = (typeof event !== 'undefined' && event && event.target) ? event.target : null;
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✅ 복사됨!';
+    btn.style.color = '#4ade80';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = '#fbbf24'; }, 2000);
+  } else {
+    toast('한 주 내용을 복사했어요 📋');
+  }
 }
 
 function pasteWeekContent() {
@@ -3539,29 +3872,290 @@ function applyDayDate(dayIndex, newDateStr) {
   renderWeek();
 }
 
-document.addEventListener('input', save);
+// 입력/선택/체크 변경 시 해당 칸만 저장 (전체 DOM 스냅샷 저장 제거)
+document.addEventListener('input', function(e){
+  const el = e.target;
+  if (el && el.dataset && el.dataset.key) dbSet(el.dataset.key, readFieldValue(el));
+});
+document.addEventListener('change', function(e){
+  const el = e.target;
+  if (el && el.dataset && el.dataset.key) dbSet(el.dataset.key, readFieldValue(el));
+});
 
-// 페이지 로드 시 자동 로그인 체크
-checkAutoLogin();
+// ══════════════════════════════════════
+// ⚙ 설정 / 꾸미기 (테마·색·크기·밀도·뷰 구성·데이터·보안·AI)
+// ══════════════════════════════════════
+const DEFAULT_SETTINGS = {
+  theme: 'dark', accent: '#3b82f6', bg: 'midnight',
+  scale: 100, radius: 10, density: 'comfortable', weekCols: '7',
+  views: { weekly:true, monthly:true, ledger:true, invest:true, wish:true },
+  viewOrder: ['weekly','monthly','ledger','invest','wish'],
+};
+const VIEW_META = {
+  weekly:  { label: 'Weekly',  icon: '📅' },
+  monthly: { label: 'Monthly', icon: '📆' },
+  ledger:  { label: '가계부',   icon: '💰' },
+  invest:  { label: '투자',     icon: '📈' },
+  wish:    { label: '살 품목',  icon: '🛒' },
+};
+const ACCENTS = ['#3b82f6','#8b5cf6','#ec4899','#ef4444','#f59e0b','#10b981','#14b8a6','#6366f1'];
+const BG_TONES = {
+  midnight: { bg:'#0f172a', panel:'#1e293b', panel2:'#0f1f35', label:'미드나잇' },
+  charcoal: { bg:'#0c0e12', panel:'#1a1d24', panel2:'#14171d', label:'차콜' },
+  deepblue: { bg:'#0a1a2f', panel:'#12263f', panel2:'#0d1f33', label:'딥블루' },
+  forest:   { bg:'#0c1a14', panel:'#152a20', panel2:'#0f2018', label:'포레스트' },
+  plum:     { bg:'#160f1f', panel:'#241830', panel2:'#1a1226', label:'플럼' },
+};
+let SETTINGS = Object.assign({}, DEFAULT_SETTINGS);
+
+function loadSettingsLocal() {
+  try { const raw = localStorage.getItem('dahoon_ui_settings'); if (raw) mergeSettings(JSON.parse(raw)); } catch(e) {}
+}
+function mergeSettings(obj) {
+  if (!obj || typeof obj !== 'object') return;
+  const views = Object.assign({}, DEFAULT_SETTINGS.views, obj.views || {});
+  SETTINGS = Object.assign({}, DEFAULT_SETTINGS, obj);
+  SETTINGS.views = views;
+  const valid = Object.keys(VIEW_META);
+  let order = Array.isArray(obj.viewOrder) ? obj.viewOrder.filter(v => valid.includes(v)) : [];
+  valid.forEach(v => { if (!order.includes(v)) order.push(v); });
+  SETTINGS.viewOrder = order;
+}
+function persistSettings() {
+  try { localStorage.setItem('dahoon_ui_settings', JSON.stringify(SETTINGS)); } catch(e) {}
+  if (fbReady && fbDB) fbDB.ref('dahoon/data').update({ ui_settings: JSON.stringify(SETTINGS) }).catch(()=>{});
+}
+async function loadSettingsRemote() {
+  if (!(fbReady && fbDB)) return;
+  try {
+    const snap = await fbDB.ref('dahoon/data').child('ui_settings').once('value');
+    const raw = snap.val();
+    if (raw) { mergeSettings(JSON.parse(raw)); applySettings(); renderNav(); syncSettingsUI(); }
+  } catch(e) {}
+}
+
+function hexToRgba(hex, a) {
+  const h = hex.replace('#',''); const s = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+  const n = parseInt(s,16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function lighten(hex, amt) {
+  const h = hex.replace('#',''); const s = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+  const num = parseInt(s,16); let r=(num>>16)&255,g=(num>>8)&255,b=num&255;
+  r=Math.round(r+(255-r)*amt); g=Math.round(g+(255-g)*amt); b=Math.round(b+(255-b)*amt);
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+function applySettings() {
+  const r = document.documentElement.style;
+  r.setProperty('--accent', SETTINGS.accent);
+  r.setProperty('--accent2', lighten(SETTINGS.accent, 0.18));
+  r.setProperty('--glow', hexToRgba(SETTINGS.accent, 0.4));
+  if (SETTINGS.theme !== 'light') {
+    const tone = BG_TONES[SETTINGS.bg] || BG_TONES.midnight;
+    r.setProperty('--bg', tone.bg); r.setProperty('--panel', tone.panel); r.setProperty('--panel2', tone.panel2);
+    r.setProperty('--text', '#e2e8f0'); r.setProperty('--muted', '#94a3b8');
+  } else {
+    ['--bg','--panel','--panel2','--text','--muted'].forEach(p => r.removeProperty(p));
+  }
+  r.setProperty('--ui-zoom', (SETTINGS.scale/100).toString());
+  r.setProperty('--card-radius', SETTINGS.radius + 'px');
+  const dens = ({ compact:['8px','10px','8px'], comfortable:['12px','14px','12px'], roomy:['16px','18px','18px'] })[SETTINGS.density] || ['12px','14px','12px'];
+  r.setProperty('--card-pad', dens[0]); r.setProperty('--box-pad', dens[1]); r.setProperty('--grid-gap', dens[2]);
+  document.body.classList.toggle('theme-light', SETTINGS.theme === 'light');
+  ['1','2','3','4','7'].forEach(n => document.body.classList.remove('wk-cols-'+n));
+  document.body.classList.add('wk-cols-' + (SETTINGS.weekCols || '7'));
+  const tc = SETTINGS.theme === 'light' ? '#eef2f7' : (BG_TONES[SETTINGS.bg]||BG_TONES.midnight).bg;
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = tc;
+}
+
+function setSetting(key, val) { SETTINGS[key] = val; applySettings(); persistSettings(); syncSettingsUI(); }
+
+function renderNav() {
+  const order = SETTINGS.viewOrder.filter(v => SETTINGS.views[v]);
+  const menu = document.getElementById('menuViews');
+  if (menu) menu.innerHTML = order.map(v => `<button onclick="showViewMobile('${v}')">${VIEW_META[v].icon} ${VIEW_META[v].label}</button>`).join('');
+  const nav = document.getElementById('bottomNav');
+  if (nav) nav.innerHTML = order.slice(0,5).map(v => `<button class="bnav-btn" id="bnav-${v}" onclick="showViewMobile('${v}')"><span class="bnav-icon">${VIEW_META[v].icon}</span><span class="bnav-label">${VIEW_META[v].label}</span></button>`).join('');
+  const order0 = order[0] || 'weekly';
+  const anyShown = order.some(v => { const el = document.getElementById(v+'View'); return el && !el.classList.contains('hidden'); });
+  if (!anyShown && typeof showView === 'function') showView(order0);
+}
+
+function syncSettingsUI() {
+  const seg = (id, val) => { const box=document.getElementById(id); if(box) box.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.val===String(val))); };
+  seg('segTheme', SETTINGS.theme); seg('segDensity', SETTINGS.density); seg('segWkCols', SETTINGS.weekCols);
+  const sr=document.getElementById('scaleRange'); if(sr) sr.value=SETTINGS.scale;
+  const sl=document.getElementById('scaleLabel'); if(sl) sl.textContent=SETTINGS.scale+'%';
+  const rr=document.getElementById('radiusRange'); if(rr) rr.value=SETTINGS.radius;
+  const rl=document.getElementById('radiusLabel'); if(rl) rl.textContent=SETTINGS.radius+'px';
+  const asw=document.getElementById('accentSwatches');
+  if(asw) asw.innerHTML = ACCENTS.map(c=>`<div class="swatch ${c===SETTINGS.accent?'active':''}" style="background:${c}" onclick="setSetting('accent','${c}')"></div>`).join('') + `<input type="color" value="${SETTINGS.accent}" oninput="setSetting('accent',this.value)" style="width:30px;height:30px;border:none;background:none;cursor:pointer;padding:0;">`;
+  const bsw=document.getElementById('bgSwatches');
+  if(bsw) bsw.innerHTML = Object.entries(BG_TONES).map(([k,t])=>`<div class="swatch ${k===SETTINGS.bg?'active':''}" style="background:${t.bg};border:1px solid rgba(255,255,255,0.25)" title="${t.label}" onclick="setSetting('bg','${k}')"></div>`).join('');
+  renderViewOrder();
+}
+function renderViewOrder() {
+  const box = document.getElementById('viewOrderList'); if(!box) return;
+  box.innerHTML = SETTINGS.viewOrder.map((v,idx)=>{
+    const on = SETTINGS.views[v];
+    return `<div class="view-order-item ${on?'':'hidden-view'}">
+      <span class="vo-name">${VIEW_META[v].icon} ${VIEW_META[v].label}</span>
+      <button onclick="toggleViewVis('${v}')" title="표시/숨김">${on?'👁':'🚫'}</button>
+      <button onclick="moveView(${idx},-1)" ${idx===0?'disabled':''}>▲</button>
+      <button onclick="moveView(${idx},1)" ${idx===SETTINGS.viewOrder.length-1?'disabled':''}>▼</button>
+    </div>`;
+  }).join('');
+}
+function toggleViewVis(v) {
+  const visibleCount = Object.values(SETTINGS.views).filter(Boolean).length;
+  if (SETTINGS.views[v] && visibleCount<=1) { toast('최소 1개는 표시해야 해요'); return; }
+  SETTINGS.views[v] = !SETTINGS.views[v];
+  applySettings(); persistSettings(); renderNav(); renderViewOrder();
+}
+function moveView(idx, dir) {
+  const j = idx+dir; if(j<0||j>=SETTINGS.viewOrder.length) return;
+  const a = SETTINGS.viewOrder; const t=a[idx]; a[idx]=a[j]; a[j]=t;
+  persistSettings(); renderNav(); renderViewOrder();
+}
+
+function openSettings(tab) {
+  syncSettingsUI();
+  const rb=document.getElementById('rulesBox'); if(rb) rb.textContent = buildRulesText();
+  loadAiKeyUI(); updateSecDetail();
+  document.getElementById('settingsModal').classList.add('open');
+  if (tab) setSettingsTab(tab);
+  if (typeof closeMenu === 'function') closeMenu();
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
+function setSettingsTab(tab) {
+  document.querySelectorAll('.settings-tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.querySelectorAll('.settings-section').forEach(s=>s.classList.toggle('active', s.dataset.sec===tab));
+}
+function resetSettings() {
+  if(!confirm('꾸미기 설정을 기본값으로 되돌릴까요?')) return;
+  SETTINGS = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  applySettings(); persistSettings(); renderNav(); syncSettingsUI();
+}
+
+function buildRulesText() {
+  return '{\n  "rules": {\n    "dahoon": {\n      ".read": "auth != null && auth.token.email == \'' + OWNER_EMAIL + '\'",\n      ".write": "auth != null && auth.token.email == \'' + OWNER_EMAIL + '\'"\n    }\n  }\n}';
+}
+function copyRules() {
+  const t = buildRulesText();
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>toast('규칙을 복사했어요 ✅'), ()=>toast('복사 실패'));
+  else toast('복사를 지원하지 않는 환경이에요');
+}
+function updateSecDetail() {
+  const el = document.getElementById('secDetail'); if(!el) return;
+  if (dbSecure === false) el.innerHTML = '<span style="color:#f87171;">🔴 전체 공개 (규칙 미적용)</span>';
+  else if (dbSecure === true) el.innerHTML = '<span style="color:#4ade80;">🟢 규칙 적용됨 (안전)</span>';
+  else el.innerHTML = '<span style="color:var(--muted);">⚪ 확인 불가</span>';
+}
+
+function loadAiKeyUI() { const i=document.getElementById('aiKeyInput'); if(i) i.value = localStorage.getItem('dahoon_ai_key')||''; }
+function saveAiKey() { const i=document.getElementById('aiKeyInput'); if(i){ localStorage.setItem('dahoon_ai_key', i.value.trim()); toast('저장했어요 ✅'); } }
+function clearAiKey() { localStorage.removeItem('dahoon_ai_key'); const i=document.getElementById('aiKeyInput'); if(i) i.value=''; toast('삭제했어요'); }
+
+async function exportData() {
+  let data = {};
+  if (fbReady && fbDB) { try { const s = await fbDB.ref('dahoon/data').once('value'); data = s.val()||{}; } catch(e){} }
+  if (!Object.keys(data).length) {
+    for (let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.startsWith('dahoon_')) data[k.replace('dahoon_','')]=localStorage.getItem(k); }
+  }
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob); const a=document.createElement('a');
+  const d = new Date(); const stamp = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  a.href=url; a.download='dahoon-planner-backup-'+stamp+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  toast('백업 파일을 저장했어요 ✅');
+}
+function importData(file) {
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); } catch(e){ toast('올바른 백업 파일이 아니에요'); return; }
+    if(!confirm('가져온 데이터로 덮어쓸까요? 현재 내용과 병합됩니다.')) return;
+    if (fbReady && fbDB) fbDB.ref('dahoon/data').update(data).then(()=>{ toast('가져오기 완료 ✅'); setTimeout(()=>location.reload(),800); }).catch(()=>toast('가져오기 실패'));
+    else { Object.entries(data).forEach(([k,v])=>{ try{ if(typeof v==='string') localStorage.setItem('dahoon_'+k, v); }catch(e){} }); toast('로컬에 가져왔어요'); setTimeout(()=>location.reload(),800); }
+  };
+  reader.readAsText(file);
+}
+async function cleanupLegacyKeys() {
+  if(!(fbReady && fbDB)) { toast('온라인 상태에서만 가능해요'); return; }
+  if(!confirm('예전 형식의 잔여 데이터를 정리할까요?\n(현재 사용하는 date-* 데이터는 그대로 유지됩니다)')) return;
+  try {
+    const snap = await fbDB.ref('dahoon/data').once('value');
+    const data = snap.val()||{};
+    const updates = {};
+    Object.keys(data).forEach(k => {
+      if (/^w-?\d+-/.test(k) || /^(월|화|수|목|금|토|일)-(am|pm)/.test(k)) updates[k] = null;
+    });
+    const n = Object.keys(updates).length;
+    if(!n){ toast('정리할 항목이 없어요'); return; }
+    await fbDB.ref('dahoon/data').update(updates);
+    toast(n+'개 정리 완료 ✅');
+  } catch(e){ toast('정리 실패'); }
+}
+
+// 자동 로그인은 Firebase 인증 지속성(onAuthStateChanged)이 처리 (checkAutoLogin 제거)
+// 설정 즉시 적용 + 네비게이션 렌더 (로그인 화면에도 테마 반영)
+loadSettingsLocal();
+applySettings();
+renderNav();
+// 보안 상태 조기 확인 (배지/배너 준비) - Firebase SDK 로드 후 재확인됨
+setTimeout(() => { if (typeof checkDbSecurity === 'function') checkDbSecurity(); }, 2500);
+
+// ── PWA: 서비스워커 등록 + 홈화면 설치 ──
+let deferredInstallPrompt = null;
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const b = document.getElementById('installBtn');
+  if (b) b.style.display = 'block';
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const b = document.getElementById('installBtn');
+  if (b) b.style.display = 'none';
+  if (typeof toast === 'function') toast('앱이 설치되었어요 🎉');
+});
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    if (typeof toast === 'function') toast('브라우저 메뉴의 "홈 화면에 추가"를 사용하세요 (iPhone은 사파리 공유 버튼)');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  try { await deferredInstallPrompt.userChoice; } catch(e) {}
+  deferredInstallPrompt = null;
+  const b = document.getElementById('installBtn');
+  if (b) b.style.display = 'none';
+}
 // 복사된 주 있으면 붙여넣기 버튼 표시
 if (localStorage.getItem('dahoon_copied_week')) { const b = document.getElementById('pasteWeekBtn'); if(b) b.style.display='flex'; }
 
 
 
-// Firebase SDK 로드
+// Firebase SDK 로드 (순서 보장: app → auth → database)
 (function loadFirebaseSDK() {
   const sdks = [
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'
   ];
-  let loaded = 0;
-  sdks.forEach(src => {
+  let i = 0;
+  (function next() {
+    if (i >= sdks.length) { initFirebase(); return; }
     const s = document.createElement('script');
-    s.src = src;
-    s.onload = () => { if (++loaded === sdks.length) initFirebase(); };
+    s.src = sdks[i++];
+    s.onload = next;
     s.onerror = () => setFbStatus('⚠ 오프라인 모드', '#fbbf24');
     document.head.appendChild(s);
-  });
+  })();
 })();
 
 </script>
