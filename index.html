@@ -557,6 +557,47 @@ body.theme-light .set-seg button { color: #475569; }
 .bottom-nav .bnav-btn { flex: 1; }
 
 /* ══════════════════════════════════════
+   🏠 홈 대시보드
+══════════════════════════════════════ */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+.dash-card {
+  background: var(--panel); border: 1px solid rgba(59,130,246,0.12);
+  border-radius: var(--card-radius, 12px); padding: 16px 18px; margin-bottom: 14px;
+}
+.dash-grid .dash-card { margin-bottom: 0; }
+.dash-card-title { font-size: 13px; color: var(--accent2); margin-bottom: 10px; font-weight: 500; }
+.dash-big { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+.dash-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.dash-sub b { color: var(--text); font-weight: 600; }
+.dash-bar { height: 7px; background: rgba(255,255,255,0.07); border-radius: 4px; margin-top: 12px; overflow: hidden; }
+.dash-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 4px; transition: width .4s ease, background .3s; }
+.dash-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.dash-badge { font-size: 11px; background: rgba(239,68,68,0.15); color: #f87171; border-radius: 10px; padding: 1px 8px; margin-left: 4px; }
+.quick-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.quick-row input, .quick-row select {
+  background: var(--panel2); border: 1px solid rgba(59,130,246,0.2); color: var(--text);
+  border-radius: 8px; padding: 9px 11px; font-size: 13px; font-family: 'Noto Sans KR', sans-serif; outline: none;
+}
+.quick-row #quickAmt { width: 110px; font-weight: 700; }
+.quick-row #quickDesc { flex: 1; min-width: 100px; }
+.quick-row button {
+  background: var(--accent); border: none; color: #fff; border-radius: 8px;
+  padding: 9px 18px; font-size: 13px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; font-weight: 500;
+}
+.quick-row button:hover { background: var(--accent2); }
+.dash-tasks { display: flex; flex-direction: column; gap: 7px; }
+.dash-task { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.5; }
+.dash-task input[type=checkbox] { margin-top: 3px; flex: none; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.dash-task span { white-space: pre-wrap; word-break: break-word; }
+.dash-task.done span { text-decoration: line-through; color: var(--muted); }
+.dash-task .dash-date { color: var(--accent2); font-weight: 600; margin-right: 4px; }
+.dash-empty { font-size: 12px; color: var(--muted); padding: 4px 0; }
+@media (max-width: 768px) {
+  .dash-grid { grid-template-columns: 1fr; }
+  .dash-big { font-size: 23px; }
+}
+
+/* ══════════════════════════════════════
    ⚙ 설정 패널
 ══════════════════════════════════════ */
 .settings-overlay {
@@ -699,7 +740,57 @@ body.theme-light .set-seg button { color: #475569; }
       <span style="font-size:13px;color:#fca5a5;">🔴 <b>보안 경고:</b> 데이터베이스가 인증 없이 외부에 공개되어 있습니다. 보안 규칙을 적용하세요.</span>
       <button onclick="openSettings('security')" style="margin-left:auto;background:#ef4444;border:none;color:#fff;border-radius:7px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;">해결 방법 보기</button>
     </div>
-    <div id="weeklyView">
+
+    <!-- 🏠 홈 대시보드 -->
+    <div id="homeView">
+      <h1 style="margin-bottom:14px;">🏠 오늘 한눈에</h1>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title">💰 이번 달 예산</div>
+          <div class="dash-big" id="dashMonthLeft">-</div>
+          <div class="dash-sub">지출 <b id="dashMonthExp">-</b> · 목표 <span id="dashMonthBudget">미설정</span></div>
+          <div class="dash-bar"><div class="dash-bar-fill" id="dashMonthBar"></div></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">📅 오늘의 예산</div>
+          <div class="dash-big" id="dashTodayLeft">-</div>
+          <div class="dash-sub">오늘 지출 <b id="dashTodayExp">-</b> · 하루 <span id="dashDaily">-</span></div>
+          <div class="dash-bar"><div class="dash-bar-fill" id="dashTodayBar"></div></div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-title">⚡ 빠른 지출 기록</div>
+        <div class="quick-row">
+          <input type="number" id="quickAmt" inputmode="numeric" placeholder="금액" onkeydown="if(event.key==='Enter')quickAddExpense()" />
+          <select id="quickCat">
+            <option>🍚 식비</option><option>☕ 카페</option><option>🚌 교통</option><option>🛒 쇼핑</option>
+            <option>🎬 여가</option><option>🏠 생활</option><option>💊 건강</option><option>💳 기타</option>
+          </select>
+          <input type="text" id="quickDesc" placeholder="내용(선택)" onkeydown="if(event.key==='Enter')quickAddExpense()" />
+          <button onclick="quickAddExpense()">기록</button>
+        </div>
+        <div class="dash-hint">결제할 때마다 바로 눌러 기록하면 위 예산이 자동으로 갱신돼요.</div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="dash-card-title">✅ 오늘 할 일</div>
+          <div id="dashToday" class="dash-tasks"></div>
+        </div>
+        <div class="dash-card">
+          <div class="dash-card-title">📌 내일 할 일</div>
+          <div id="dashTomorrow" class="dash-tasks"></div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-title">🔔 까먹은 일 <span style="color:var(--muted);font-weight:400;">(지난 2주 미완료)</span> <span id="dashForgotCount" class="dash-badge"></span></div>
+        <div id="dashForgot" class="dash-tasks"></div>
+      </div>
+    </div>
+
+    <div id="weeklyView" class="hidden">
       <!-- PC: 인쇄 버튼 포함 헤더 -->
       <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:6px;position:relative;">
         <button onclick="changeWeek(-1)" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:18px;transition:all 0.2s;" onmouseover="this.style.background='rgba(59,130,246,0.28)';this.style.color='white'" onmouseout="this.style.background='rgba(59,130,246,0.12)';this.style.color='rgba(255,255,255,0.5)'">&#8249;</button>
@@ -1553,7 +1644,7 @@ function enterApp(user) {
   attachDataListener();   // 실시간 동기화는 인증 이후에만
   if (!appDataLoaded) {
     appDataLoaded = true;
-    openDB().then(() => { renderMonth(); load(); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
+    openDB().then(() => { renderMonth(); load().then(() => renderHome()); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
   }
   setTimeout(checkDbSecurity, 1500);
 }
@@ -1575,12 +1666,13 @@ const days = ['월','화','수','목','금','토','일'];
 let currentTextarea = null, currentKey = null;
 
 function showView(v) {
-  ['weekly','monthly','ledger','invest','wish'].forEach(name => {
+  ['home','weekly','monthly','ledger','invest','wish'].forEach(name => {
     const el = document.getElementById(name + 'View');
     if (el) el.classList.add('hidden');
   });
   const target = document.getElementById(v + 'View');
   if (target) target.classList.remove('hidden');
+  if (v === 'home') renderHome();
   if (v === 'ledger') loadLedger();
   if (v === 'invest') renderInvest();
   if (v === 'wish') { renderWish(); renderMeetingLogs(); }
@@ -1837,6 +1929,9 @@ function attachDataListener() {
         else localStorage.setItem('dahoon_' + el.dataset.key, v);
       } catch(e) {}
     });
+    // 홈 대시보드가 열려 있으면 원격 변경을 즉시 반영
+    const homeEl = document.getElementById('homeView');
+    if (homeEl && !homeEl.classList.contains('hidden') && typeof renderHome === 'function') renderHome();
   }, err => {
     // 권한 오류 등으로 취소되면 다음 로그인 때 다시 붙일 수 있게 초기화
     dataListenerRef = null;
@@ -1938,12 +2033,15 @@ function flushUpdates() {
 
 function dbSet(key, val) {
   const empty = (val === '' || val === null || val === undefined);
+  const sk = sanitizeKey(key);
   try {
     if (empty) localStorage.removeItem('dahoon_' + key);
     else localStorage.setItem('dahoon_' + key, val);
   } catch(e) {}
+  // 현재 상태 스냅샷도 즉시 갱신 (대시보드 등이 바로 반영되도록)
+  if (remoteSnapshot) { if (empty) delete remoteSnapshot[sk]; else remoteSnapshot[sk] = val; }
   if (!fbReady) return;
-  pendingUpdates[sanitizeKey(key)] = empty ? null : val;   // 빈 값은 키 자체를 제거
+  pendingUpdates[sk] = empty ? null : val;   // 빈 값은 키 자체를 제거
   scheduleFlush(350);
 }
 
@@ -2725,7 +2823,7 @@ function showViewMobile(v) {
 const _origShowView = showView;
 showView = function(v) {
   _origShowView(v);
-  ['weekly','monthly','ledger','invest','wish'].forEach(name => {
+  ['home','weekly','monthly','ledger','invest','wish'].forEach(name => {
     const btn = document.getElementById('bnav-' + name);
     if (btn) btn.classList.toggle('active', name === v);
   });
@@ -3947,15 +4045,161 @@ document.addEventListener('change', function(e){
 });
 
 // ══════════════════════════════════════
+// 🏠 홈 대시보드 (월 예산·오늘 예산·오늘/내일 할 일·까먹은 일·빠른 기록)
+// ══════════════════════════════════════
+function dashVal(key) {
+  const sk = sanitizeKey(key);
+  if (remoteSnapshot && remoteSnapshot[sk] !== undefined && remoteSnapshot[sk] !== null) return remoteSnapshot[sk];
+  const ls = localStorage.getItem('dahoon_' + key);
+  return (ls === null || ls === undefined) ? '' : ls;
+}
+function readDayTasks(dateKey) {
+  const base = 'date-' + dateKey;
+  return {
+    am: dashVal(base + '-am') || '', amCheck: dashVal(base + '-am-check') === '1',
+    pm: dashVal(base + '-pm') || '', pmCheck: dashVal(base + '-pm-check') === '1',
+  };
+}
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function wonFmt(n) { return (n||0).toLocaleString() + '원'; }
+
+function renderHome() {
+  const home = document.getElementById('homeView');
+  if (!home) return;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const pad = x => String(x).padStart(2,'0');
+
+  // 이번 달 가계부
+  let led = [];
+  try { led = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch(e) { led = []; }
+  const monthExp = led.filter(r => r.type === 'expense').reduce((s,r) => s + (r.amt||0), 0);
+
+  // 월 목표(예산): budget-{y}-{m} → budget_goals.monthly 순
+  let goals = {}; try { goals = JSON.parse(dashVal('budget_goals') || '{}'); } catch(e) {}
+  const monthBudget = parseInt(dashVal('budget-' + y + '-' + m) || goals.monthly || 0) || 0;
+  const monthLeft = monthBudget - monthExp;
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('dashMonthExp', wonFmt(monthExp));
+  set('dashMonthBudget', monthBudget ? wonFmt(monthBudget) : '미설정');
+  const mLeftEl = document.getElementById('dashMonthLeft');
+  if (mLeftEl) {
+    mLeftEl.textContent = monthBudget ? (monthLeft >= 0 ? wonFmt(monthLeft) + ' 남음' : wonFmt(-monthLeft) + ' 초과') : wonFmt(monthExp) + ' 지출';
+    mLeftEl.style.color = !monthBudget ? 'var(--text)' : (monthLeft >= 0 ? '#4ade80' : '#f87171');
+  }
+  const mBar = document.getElementById('dashMonthBar');
+  if (mBar) { const p = monthBudget ? Math.min(100, Math.round(monthExp / monthBudget * 100)) : 0; mBar.style.width = p + '%'; mBar.style.background = p > 90 ? '#f87171' : p > 70 ? '#fbbf24' : 'var(--accent)'; }
+
+  // 오늘의 예산
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const daysLeft = Math.max(1, lastDay - now.getDate() + 1);
+  let daily = parseInt(dashVal('daily_budget') || 0) || 0;
+  if (!daily && monthLeft > 0) daily = Math.round(monthLeft / daysLeft);  // 미설정 시 권장 일예산
+  const todayStr = pad(m+1) + '/' + pad(now.getDate());
+  const todayExp = led.filter(r => r.type === 'expense' && r.date === todayStr).reduce((s,r) => s + (r.amt||0), 0);
+  const todayLeft = daily - todayExp;
+  set('dashTodayExp', wonFmt(todayExp));
+  set('dashDaily', daily ? wonFmt(daily) : '미설정');
+  const tLeftEl = document.getElementById('dashTodayLeft');
+  if (tLeftEl) {
+    tLeftEl.textContent = daily ? (todayLeft >= 0 ? wonFmt(todayLeft) + ' 남음' : wonFmt(-todayLeft) + ' 초과') : wonFmt(todayExp) + ' 지출';
+    tLeftEl.style.color = !daily ? 'var(--text)' : (todayLeft >= 0 ? '#4ade80' : '#f87171');
+  }
+  const tBar = document.getElementById('dashTodayBar');
+  if (tBar) { const p = daily ? Math.min(100, Math.round(todayExp / daily * 100)) : 0; tBar.style.width = p + '%'; tBar.style.background = p > 90 ? '#f87171' : p > 70 ? '#fbbf24' : 'var(--accent)'; }
+
+  // 오늘 / 내일 할 일
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  renderTaskList('dashToday', dateToKey(now));
+  renderTaskList('dashTomorrow', dateToKey(tomorrow));
+
+  // 까먹은 일: 지난 14일 중 내용 있고 미완료
+  const forgot = [];
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(now); d.setDate(now.getDate() - i);
+    const dk = dateToKey(d);
+    const t = readDayTasks(dk);
+    const md = pad(d.getMonth()+1) + '/' + pad(d.getDate());
+    if (t.am && !t.amCheck) forgot.push({ dk, slot: 'am', md, text: t.am });
+    if (t.pm && !t.pmCheck) forgot.push({ dk, slot: 'pm', md, text: t.pm });
+  }
+  const fBox = document.getElementById('dashForgot');
+  if (fBox) {
+    fBox.innerHTML = forgot.length
+      ? forgot.map(f => `<div class="dash-task"><input type="checkbox" onchange="toggleDashTask('${f.dk}','${f.slot}',this.checked)"><span><span class="dash-date">${f.md}</span>${escHtml(f.text)}</span></div>`).join('')
+      : '<div class="dash-empty">밀린 일이 없어요 🎉</div>';
+  }
+  const fc = document.getElementById('dashForgotCount');
+  if (fc) fc.textContent = forgot.length ? forgot.length + '건' : '';
+}
+
+function renderTaskList(boxId, dateKey) {
+  const box = document.getElementById(boxId); if (!box) return;
+  const t = readDayTasks(dateKey);
+  const items = [];
+  if (t.am) items.push({ slot: 'am', label: '오전', text: t.am, checked: t.amCheck });
+  if (t.pm) items.push({ slot: 'pm', label: '오후', text: t.pm, checked: t.pmCheck });
+  box.innerHTML = items.length
+    ? items.map(it => `<div class="dash-task ${it.checked ? 'done' : ''}"><input type="checkbox" ${it.checked ? 'checked' : ''} onchange="toggleDashTask('${dateKey}','${it.slot}',this.checked)"><span><span class="dash-date">${it.label}</span>${escHtml(it.text)}</span></div>`).join('')
+    : '<div class="dash-empty">등록된 일이 없어요</div>';
+}
+
+function toggleDashTask(dateKey, slot, checked) {
+  const key = 'date-' + dateKey + '-' + slot + '-check';
+  dbSet(key, checked ? '1' : '');
+  // 주간 화면에 해당 체크박스가 있으면 동기화
+  const el = document.querySelector('[data-key="' + key + '"]');
+  if (el) el.checked = checked;
+  renderHome();
+}
+
+function quickAddExpense() {
+  const amtEl = document.getElementById('quickAmt');
+  const catEl = document.getElementById('quickCat');
+  const descEl = document.getElementById('quickDesc');
+  const amt = parseInt(amtEl && amtEl.value);
+  if (!amt || amt <= 0) { toast('금액을 입력하세요'); if (amtEl) amtEl.focus(); return; }
+  const cat = catEl ? catEl.value : '💳 기타';
+  const desc = (descEl && descEl.value.trim()) || cat;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const pad = x => String(x).padStart(2,'0');
+  const iso = dateToKey(now);
+  const dateStr = pad(m+1) + '/' + pad(now.getDate());
+  const ledKey = 'ledger-' + y + '-' + m;
+  let led = [];
+  try { led = JSON.parse(dashVal(ledKey) || '[]'); } catch(e) { led = []; }
+  led.unshift({ id: Date.now(), date: dateStr, iso, type: 'expense', desc, cat, amt });
+  dbSet(ledKey, JSON.stringify(led));
+  // 가계부 화면이 이번 달을 보고 있으면 메모리·화면도 갱신
+  if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear() === y && ledgerCurrent.getMonth() === m) {
+    ledgerData = led;
+    if (typeof renderLedger === 'function') renderLedger();
+  }
+  if (amtEl) amtEl.value = '';
+  if (descEl) descEl.value = '';
+  renderHome();
+  toast('기록했어요 · ' + wonFmt(amt) + ' ✅');
+}
+
+// 홈이 보이는 동안 1분마다 자동 새로고침 (날짜 경과·예산 갱신)
+setInterval(() => {
+  const home = document.getElementById('homeView');
+  if (home && !home.classList.contains('hidden') && document.getElementById('app').classList.contains('active')) renderHome();
+}, 60000);
+
+// ══════════════════════════════════════
 // ⚙ 설정 / 꾸미기 (테마·색·크기·밀도·뷰 구성·데이터·보안·AI)
 // ══════════════════════════════════════
 const DEFAULT_SETTINGS = {
   theme: 'dark', accent: '#3b82f6', bg: 'midnight',
   scale: 100, radius: 10, density: 'comfortable', weekCols: '7',
-  views: { weekly:true, monthly:true, ledger:true, invest:true, wish:true },
-  viewOrder: ['weekly','monthly','ledger','invest','wish'],
+  views: { home:true, weekly:true, monthly:true, ledger:true, invest:true, wish:true },
+  viewOrder: ['home','weekly','monthly','ledger','invest','wish'],
 };
 const VIEW_META = {
+  home:    { label: '홈',       icon: '🏠' },
   weekly:  { label: 'Weekly',  icon: '📅' },
   monthly: { label: 'Monthly', icon: '📆' },
   ledger:  { label: '가계부',   icon: '💰' },
@@ -3983,6 +4227,8 @@ function mergeSettings(obj) {
   const valid = Object.keys(VIEW_META);
   let order = Array.isArray(obj.viewOrder) ? obj.viewOrder.filter(v => valid.includes(v)) : [];
   valid.forEach(v => { if (!order.includes(v)) order.push(v); });
+  // 새로 추가된 '홈'은 기존 사용자 설정에도 맨 앞에 오도록 보정
+  if (order.includes('home')) { order = ['home'].concat(order.filter(v => v !== 'home')); }
   SETTINGS.viewOrder = order;
 }
 function persistSettings() {
