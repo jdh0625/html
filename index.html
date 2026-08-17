@@ -1652,18 +1652,33 @@ body.theme-light .set-seg button { color: #475569; }
 
       <!-- AI -->
       <div class="settings-section" data-sec="ai">
-        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;">
-          회의록 자동 정리에 Anthropic API 키가 필요합니다. 키는 <b>이 기기(브라우저)에만</b> 저장되며 동기화되지 않습니다.
-          <br>브라우저에 키를 저장하면 이 기기를 쓰는 사람이 볼 수 있으니 공용 PC에서는 입력하지 마세요.
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:12px;">
+          다브스 AI 자유 대화용 키입니다. 키는 <b>이 기기(브라우저)에만</b> 저장되고 동기화되지 않아요. 공용 PC에서는 넣지 마세요.
         </div>
-        <div class="set-row">
-          <div class="set-label">Anthropic API 키</div>
-          <input type="password" id="aiKeyInput" placeholder="sk-ant-..." style="flex:1;min-width:180px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:var(--text);font-size:13px;">
+
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:12px;margin-bottom:14px;">
+          <div style="font-size:13px;color:#34d399;font-weight:600;margin-bottom:4px;">✅ Gemini (무료 추천)</div>
+          <div style="font-size:11.5px;color:var(--muted);line-height:1.6;margin-bottom:8px;">
+            결제수단 없이 무료로 쓸 수 있어요. <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:#34d399;">Google AI Studio</a>에서 "Create API key" → 키 복사 → 아래 붙여넣기.
+          </div>
+          <div class="set-row" style="border:none;padding:4px 0;">
+            <input type="password" id="geminiKeyInput" placeholder="AIza..." style="flex:1;min-width:160px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(16,185,129,0.3);border-radius:8px;color:var(--text);font-size:13px;">
+          </div>
+          <div class="set-row" style="justify-content:flex-start;gap:8px;border:none;padding:4px 0;">
+            <button class="set-btn" style="background:#10b981;" onclick="saveGeminiKey()">저장</button>
+            <button class="set-btn ghost" onclick="clearGeminiKey()">삭제</button>
+          </div>
+        </div>
+
+        <div class="set-row" style="display:block;">
+          <div class="set-label" style="margin-bottom:6px;">Anthropic(클로드) API 키 <small>유료·선택 (회의록 정리에도 사용)</small></div>
+          <input type="password" id="aiKeyInput" placeholder="sk-ant-..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;">
         </div>
         <div class="set-row" style="justify-content:flex-start;gap:8px;">
           <button class="set-btn" onclick="saveAiKey()">저장</button>
           <button class="set-btn ghost" onclick="clearAiKey()">삭제</button>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;">우선순위: Gemini 키가 있으면 Gemini, 없으면 Anthropic, 둘 다 없으면 무료 로컬 요약으로 답합니다.</div>
       </div>
 
     </div>
@@ -4695,12 +4710,37 @@ async function callDavosAI(text) {
   if (data && data.content && data.content[0] && data.content[0].text) return data.content[0].text.trim();
   throw new Error('NO_REPLY');
 }
+// Gemini (무료) 호출 — 브라우저에서 직접 호출 가능
+async function callGeminiAI(text) {
+  const key = localStorage.getItem('dahoon_gemini_key');
+  if (!key) throw new Error('NO_GEMINI');
+  const sys = "너는 '다브스', 사용자 '다훈'의 개인 비서 AI야. 한국어로 친근하고 아주 간결하게(2~3문장) 답해. 아래 사용자 데이터를 참고하고, 모르면 솔직히 말해.\n\n[사용자 데이터]\n" + buildJarvisContext();
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: text }] }],
+      generationConfig: { maxOutputTokens: 300, temperature: 0.7 }
+    })
+  });
+  const data = await res.json();
+  const reply = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+  if (reply) return reply.trim();
+  if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
+  throw new Error('NO_REPLY');
+}
 async function jarvisAskAI(text) {
   const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
   jSet('jarvisHeroReply', '🤔 생각 중...'); jSet('jarvisReply', '🤔 생각 중...');
-  try { jarvisRespond(await callDavosAI(text)); }
-  catch(e) { jarvisRespond('지금은 AI 답변을 못 받았어요. (설정 > AI 에서 키를 확인해 주세요)'); }
-  finally { if (av) av.classList.remove('thinking'); }
+  try {
+    let reply;
+    if (localStorage.getItem('dahoon_gemini_key')) reply = await callGeminiAI(text);       // 1순위: Gemini(무료)
+    else if (localStorage.getItem('dahoon_ai_key')) reply = await callDavosAI(text);         // 2순위: Anthropic
+    else reply = jarvisInsight();                                                             // 3순위: 무료 로컬
+    jarvisRespond(reply);
+  } catch(e) {
+    jarvisRespond('지금은 AI 답변을 못 받았어요. (설정 > AI 에서 키를 확인해 주세요) — ' + jarvisInsight());
+  } finally { if (av) av.classList.remove('thinking'); }
 }
 
 // 금액 파서 (아라비아 + 한글 숫자 지원: "오천원"=5000, "만이천원"=12000, "3만원"=30000, "십만원"=100000)
@@ -4790,8 +4830,8 @@ function processVoice(text) {
   // ── 분석 / 요약 / 조언 / 절약 (무료 로컬 인사이트) ──
   if (/(분석|요약|정리해|조언|팁|절약|아껴|어떻게|줄일|많이 쓴|제일 많이|가장 많이)/.test(text)) { jarvisRespond(jarvisInsight()); return; }
 
-  // ── 못 알아들음 → AI 키 있으면 자유 대화, 없으면 로컬 인사이트 ──
-  if (localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
+  // ── 못 알아들음 → AI 키(Gemini/Anthropic) 있으면 자유 대화, 없으면 로컬 인사이트 ──
+  if (localStorage.getItem('dahoon_gemini_key') || localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
   jarvisRespond(jarvisInsight() + '  ("카페 오천원"처럼 말하면 기록도 돼요.)');
 }
 
@@ -5036,9 +5076,14 @@ function updateSecDetail() {
   else el.innerHTML = '<span style="color:var(--muted);">⚪ 확인 불가</span>';
 }
 
-function loadAiKeyUI() { const i=document.getElementById('aiKeyInput'); if(i) i.value = localStorage.getItem('dahoon_ai_key')||''; }
+function loadAiKeyUI() {
+  const i=document.getElementById('aiKeyInput'); if(i) i.value = localStorage.getItem('dahoon_ai_key')||'';
+  const g=document.getElementById('geminiKeyInput'); if(g) g.value = localStorage.getItem('dahoon_gemini_key')||'';
+}
 function saveAiKey() { const i=document.getElementById('aiKeyInput'); if(i){ localStorage.setItem('dahoon_ai_key', i.value.trim()); toast('저장했어요 ✅'); } }
 function clearAiKey() { localStorage.removeItem('dahoon_ai_key'); const i=document.getElementById('aiKeyInput'); if(i) i.value=''; toast('삭제했어요'); }
+function saveGeminiKey() { const g=document.getElementById('geminiKeyInput'); if(g){ localStorage.setItem('dahoon_gemini_key', g.value.trim()); toast('Gemini 키 저장 ✅ 이제 다브스가 AI로 답해요'); } }
+function clearGeminiKey() { localStorage.removeItem('dahoon_gemini_key'); const g=document.getElementById('geminiKeyInput'); if(g) g.value=''; toast('삭제했어요'); }
 
 async function exportData() {
   let data = {};

@@ -2,11 +2,20 @@
    서비스 계정으로 DB를 읽어 오늘 요약을 만들고, 등록된 기기(FCM 토큰)에 푸시 */
 const admin = require('firebase-admin');
 
-const svc = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-admin.initializeApp({
-  credential: admin.credential.cert(svc),
-  databaseURL: 'https://dahoon-planner-default-rtdb.asia-southeast1.firebasedatabase.app'
-});
+const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+if (!raw) {
+  console.log('⏭ 알림 건너뜀: FIREBASE_SERVICE_ACCOUNT 시크릿이 아직 없습니다. (STEP C: 서비스계정 키 등록 필요)');
+  process.exit(0);   // 미설정 시 실패로 처리하지 않음 (매일 밤 실패 알림 방지)
+}
+let svc;
+try { svc = JSON.parse(raw); }
+catch (e) { console.error('❌ 서비스계정 JSON 파싱 실패: GitHub 시크릿에 JSON 파일 "전체"가 정확히 들어갔는지 확인하세요.'); process.exit(1); }
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert(svc),
+    databaseURL: 'https://dahoon-planner-default-rtdb.asia-southeast1.firebasedatabase.app'
+  });
+} catch (e) { console.error('❌ firebase-admin 초기화 실패:', e.message); process.exit(1); }
 const db = admin.database();
 
 const sanitizeKey = k => k.replace(/[.#$\[\]]/g, '_');
