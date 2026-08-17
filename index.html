@@ -4428,7 +4428,24 @@ function renderPortfolio() {
     return `<div class="pf-leg"><span class="pf-dot" style="background:${color}"></span><span class="pf-name">${escHtml(h.name)}</span><span class="pf-val">${wonFmt(h.amt)}</span><span class="pf-pct">${pct.toFixed(1)}%</span></div>`;
   }).join('');
 }
-function openPortfolioModal() { renderPfList(); document.getElementById('portfolioModal').classList.add('open'); if (typeof closeMenu === 'function') closeMenu(); }
+// 같은 이름(대소문자·공백 무시) 항목을 하나로 병합 — 최신 금액 유지
+function dedupePortfolio() {
+  const arr = getPortfolio();
+  const idxByName = {}; const out = [];
+  arr.forEach(h => {
+    const key = (h.name || '').trim().toLowerCase();
+    if (idxByName[key] !== undefined) out[idxByName[key]].amt = h.amt;
+    else { idxByName[key] = out.length; out.push({ id: h.id, name: h.name, amt: h.amt }); }
+  });
+  if (out.length !== arr.length) { savePortfolio(out); return true; }
+  return false;
+}
+function openPortfolioModal() {
+  if (dedupePortfolio()) renderHome();   // 기존 중복 자동 정리
+  renderPfList();
+  document.getElementById('portfolioModal').classList.add('open');
+  if (typeof closeMenu === 'function') closeMenu();
+}
 function closePortfolioModal() { document.getElementById('portfolioModal').classList.remove('open'); }
 function renderPfList() {
   const box = document.getElementById('pfList'); if (!box) return;
@@ -4445,9 +4462,12 @@ function addPortfolioItem() {
   const amt = parseInt(a && a.value);
   if (!name) { toast('자산명을 입력하세요'); if (n) n.focus(); return; }
   if (!amt || amt <= 0) { toast('평가금액을 입력하세요'); if (a) a.focus(); return; }
-  const arr = getPortfolio(); arr.push({ id: Date.now(), name, amt }); savePortfolio(arr);
+  const arr = getPortfolio();
+  const idx = arr.findIndex(h => (h.name || '').trim().toLowerCase() === name.toLowerCase());
+  if (idx >= 0) arr[idx].amt = amt; else arr.push({ id: Date.now(), name, amt });   // 같은 이름은 금액만 갱신
+  savePortfolio(arr);
   if (n) n.value = ''; if (a) a.value = '';
-  renderPfList(); renderHome(); toast('추가했어요 ✅');
+  renderPfList(); renderHome(); toast(idx >= 0 ? '금액을 갱신했어요 ✅' : '추가했어요 ✅');
 }
 function deletePortfolioItem(id) {
   savePortfolio(getPortfolio().filter(h => h.id !== id));
@@ -4457,7 +4477,7 @@ function importPortfolio() {
   const ta = document.getElementById('pfPaste'); if (!ta) return;
   const lines = ta.value.split('\n');
   const arr = getPortfolio();
-  let added = 0, base = Date.now();
+  let changed = 0, base = Date.now();
   lines.forEach(line => {
     const s = line.trim(); if (!s) return;
     const m = s.match(/^(.*?)[\s:,]+([0-9][0-9,\.]*)\s*원?\s*$/);
@@ -4465,11 +4485,13 @@ function importPortfolio() {
     const name = m[1].trim().replace(/[,\s]+$/,'');
     const amt = parseInt(m[2].replace(/[^0-9]/g,''));
     if (!name || !amt) return;
-    arr.push({ id: base + added, name, amt }); added++;
+    const idx = arr.findIndex(h => (h.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (idx >= 0) arr[idx].amt = amt; else arr.push({ id: base + changed, name, amt });   // 중복 방지: 같은 이름은 갱신
+    changed++;
   });
-  if (!added) { toast('인식된 항목이 없어요. "자산명 금액" 형식으로 입력하세요'); return; }
+  if (!changed) { toast('인식된 항목이 없어요. "자산명 금액" 형식으로 입력하세요'); return; }
   savePortfolio(arr); ta.value = '';
-  renderPfList(); renderHome(); toast(added + '개 추가했어요 ✅');
+  renderPfList(); renderHome(); toast(changed + '개 반영했어요 ✅');
 }
 
 // ══════════════════════════════════════
