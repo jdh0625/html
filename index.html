@@ -752,6 +752,7 @@ body.theme-light .set-seg button { color: #475569; }
           <div class="dash-card-title">💰 이번 달 예산</div>
           <div class="dash-big" id="dashMonthLeft">-</div>
           <div class="dash-sub">지출 <b id="dashMonthExp">-</b> · 목표 <span id="dashMonthBudget">미설정</span></div>
+          <div class="dash-sub" id="dashMonthFixed" style="margin-top:2px;"></div>
           <div class="dash-bar"><div class="dash-bar-fill" id="dashMonthBar"></div></div>
         </div>
         <div class="dash-card">
@@ -760,6 +761,15 @@ body.theme-light .set-seg button { color: #475569; }
           <div class="dash-sub">오늘 지출 <b id="dashTodayExp">-</b> · 하루 <span id="dashDaily">-</span></div>
           <div class="dash-bar"><div class="dash-bar-fill" id="dashTodayBar"></div></div>
         </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🔁 이번 달 고정 지출</span>
+          <button onclick="openFixedModal()" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:7px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;">＋ 관리</button>
+        </div>
+        <div class="dash-big" id="dashFixedTotal">0원</div>
+        <div class="dash-sub" id="dashFixedList" style="margin-top:6px;"></div>
       </div>
 
       <div class="dash-card">
@@ -1525,6 +1535,25 @@ body.theme-light .set-seg button { color: #475569; }
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- 🔁 월 고정 지출 관리 -->
+<div class="settings-overlay" id="fixedModal">
+  <div class="settings-panel" style="max-width:460px;">
+    <div class="settings-head">
+      <h2>🔁 월 고정 지출</h2>
+      <button class="settings-close" onclick="closeFixedModal()">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="dash-hint" style="margin-bottom:14px;">매달 반복되는 지출(월세·구독료·보험 등)을 등록하면 홈 대시보드의 '여유 예산'에 자동 반영됩니다.</div>
+      <div class="quick-row" style="margin-bottom:14px;">
+        <input type="text" id="fxName" placeholder="항목 (예: 넷플릭스)" style="flex:1;min-width:120px;" />
+        <input type="number" id="fxAmt" inputmode="numeric" placeholder="금액" style="width:110px;" onkeydown="if(event.key==='Enter')addFixed()" />
+        <button onclick="addFixed()">추가</button>
+      </div>
+      <div id="fxList"></div>
     </div>
   </div>
 </div>
@@ -4094,6 +4123,19 @@ function renderHome() {
   const mBar = document.getElementById('dashMonthBar');
   if (mBar) { const p = monthBudget ? Math.min(100, Math.round(monthExp / monthBudget * 100)) : 0; mBar.style.width = p + '%'; mBar.style.background = p > 90 ? '#f87171' : p > 70 ? '#fbbf24' : 'var(--accent)'; }
 
+  // 고정 지출 카드 + 여유 예산(월예산 - 고정 - 변동)
+  renderFixedCard();
+  const fixed = fixedTotal();
+  const fixedEl = document.getElementById('dashMonthFixed');
+  if (fixedEl) {
+    if (monthBudget) {
+      const free = monthBudget - fixed - monthExp;
+      fixedEl.innerHTML = '고정 ' + wonFmt(fixed) + ' · 여유 <b style="color:' + (free >= 0 ? '#4ade80' : '#f87171') + '">' + (free >= 0 ? wonFmt(free) : '부족 ' + wonFmt(-free)) + '</b>';
+    } else {
+      fixedEl.textContent = fixed ? '고정 지출 ' + wonFmt(fixed) : '';
+    }
+  }
+
   // 오늘의 예산
   const lastDay = new Date(y, m + 1, 0).getDate();
   const daysLeft = Math.max(1, lastDay - now.getDate() + 1);
@@ -4238,6 +4280,43 @@ function buildReminders(force) {
     try { new Notification('📋 오늘의 알림', { body, tag: 'dahoon-daily' }); return; } catch(e) {}
   }
   toast(msgs[0]);   // 권한 없으면 앱 안 토스트로
+}
+
+// ── 월 고정 지출 (월세·구독료·보험 등 반복 지출) ──
+function getFixed() { try { return JSON.parse(dashVal('fixed_expenses') || '[]'); } catch(e) { return []; } }
+function saveFixed(arr) { dbSet('fixed_expenses', JSON.stringify(arr)); }
+function fixedTotal() { return getFixed().reduce((s,f) => s + (f.amt||0), 0); }
+function renderFixedCard() {
+  const arr = getFixed();
+  const t = document.getElementById('dashFixedTotal'); if (t) t.textContent = wonFmt(fixedTotal());
+  const l = document.getElementById('dashFixedList');
+  if (l) l.innerHTML = arr.length
+    ? arr.map(f => `${escHtml(f.name)} <b>${wonFmt(f.amt)}</b>`).join(' · ')
+    : '<span class="dash-empty">＋ 관리에서 월세·구독료 등을 등록해 보세요</span>';
+}
+function openFixedModal() { renderFxList(); document.getElementById('fixedModal').classList.add('open'); if (typeof closeMenu === 'function') closeMenu(); }
+function closeFixedModal() { document.getElementById('fixedModal').classList.remove('open'); }
+function renderFxList() {
+  const box = document.getElementById('fxList'); if (!box) return;
+  const arr = getFixed();
+  box.innerHTML = arr.length
+    ? arr.map(f => `<div class="view-order-item"><span class="vo-name">${escHtml(f.name)}</span><span style="font-variant-numeric:tabular-nums;margin-right:6px;">${wonFmt(f.amt)}</span><button onclick="deleteFixed(${f.id})" title="삭제">🗑</button></div>`).join('')
+      + `<div class="dash-hint" style="margin-top:10px;">합계: <b>${wonFmt(fixedTotal())}</b></div>`
+    : '<div class="dash-empty">아직 등록된 고정 지출이 없어요.</div>';
+}
+function addFixed() {
+  const n = document.getElementById('fxName'), a = document.getElementById('fxAmt');
+  const name = n && n.value.trim();
+  const amt = parseInt(a && a.value);
+  if (!name) { toast('항목 이름을 입력하세요'); if (n) n.focus(); return; }
+  if (!amt || amt <= 0) { toast('금액을 입력하세요'); if (a) a.focus(); return; }
+  const arr = getFixed(); arr.push({ id: Date.now(), name, amt }); saveFixed(arr);
+  if (n) n.value = ''; if (a) a.value = '';
+  renderFxList(); renderHome(); toast('추가했어요 ✅');
+}
+function deleteFixed(id) {
+  saveFixed(getFixed().filter(f => f.id !== id));
+  renderFxList(); renderHome();
 }
 
 // ══════════════════════════════════════
