@@ -3902,22 +3902,7 @@ async function organizeWithAI(text) {
 }
 
 async function callOrganizeAI(text) {
-  const apiKey = localStorage.getItem('dahoon_ai_key');
-  if (!apiKey) { throw new Error('NO_API_KEY'); }
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: `다음은 회의 또는 메모 녹음 내용입니다. 내용의 흐름을 파악하여 주제가 바뀌는 부분을 구분하고, 아래 형식으로 정리해주세요.
+  const prompt = `다음은 회의 또는 메모 녹음 내용입니다. 내용의 흐름을 파악하여 주제가 바뀌는 부분을 구분하고, 아래 형식으로 정리해주세요.
 
 형식:
 📌 [주제명]
@@ -3936,8 +3921,37 @@ async function callOrganizeAI(text) {
 - 마크다운 기호 없이 위 형식만 사용
 
 녹음 내용:
-${text}`
-      }]
+${text}`;
+
+  // 1순위: Gemini(무료)
+  const geminiKey = localStorage.getItem('dahoon_gemini_key');
+  if (geminiKey) {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1500, temperature: 0.4 } })
+    });
+    const data = await res.json();
+    const t = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (t) return t.trim();
+    if (data && data.error) throw new Error(data.error.message);
+    return text;
+  }
+
+  // 2순위: Anthropic(유료)
+  const apiKey = localStorage.getItem('dahoon_ai_key');
+  if (!apiKey) { throw new Error('NO_API_KEY'); }
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
     })
   });
   const data = await response.json();
