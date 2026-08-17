@@ -1,16 +1,20 @@
 {
-  "name": "Da Hoon Planner",
-  "short_name": "Da Hoon",
-  "description": "주간·월간 플래너, 가계부, 투자, 위시리스트를 한 곳에서",
+  "name": "다브스",
+  "short_name": "다브스",
+  "description": "다브스 AI 비서 · 플래너 · 가계부 · 투자 · 자산",
   "lang": "ko",
   "dir": "ltr",
-  "start_url": "./index.html",
+  "start_url": "./index.html?voice=1",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "categories": ["productivity", "lifestyle"],
+  "shortcuts": [
+    { "name": "다브스에게 말하기", "short_name": "말하기", "url": "./index.html?voice=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "홈 (음성 없이)", "short_name": "홈", "url": "./index.html", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
