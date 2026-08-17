@@ -1,0 +1,9 @@
+{
+  "name": "dahoon-notify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "다훈 플래너 예약 알림 전송 (FCM)",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

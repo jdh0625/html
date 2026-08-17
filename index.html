@@ -1612,6 +1612,7 @@ body.theme-light .set-seg button { color: #475569; }
 // ── AUTH (Firebase 이메일/비밀번호 인증) ──
 // ★ 이전의 하드코딩된 비밀번호/생년월일 방식 제거 → 실제 인증으로 교체
 const OWNER_EMAIL = 'jftgj00625@gmail.com';   // 데이터 접근을 허용할 소유자 이메일 (보안 규칙과 일치시킬 것)
+const VAPID_KEY = 'BJqHjLJPlFinR_tPxx68caJOQ3qTh9V-7gYwJwOd48bDOipJZIpA0mGC_XLfBmdOsVlHWo_XRKjcJDecrLngpjQ';   // 웹 푸시 공개키 (서버 푸시용)
 let currentUser = null;
 let authMode = 'login';   // 'login' | 'signup'
 let appDataLoaded = false;
@@ -1726,7 +1727,7 @@ function enterApp(user) {
   attachDataListener();   // 실시간 동기화는 인증 이후에만
   if (!appDataLoaded) {
     appDataLoaded = true;
-    openDB().then(() => { renderMonth(); load().then(() => { renderHome(); updateNotifBtn(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
+    openDB().then(() => { renderMonth(); load().then(() => { renderHome(); updateNotifBtn(); if (('Notification' in window) && Notification.permission === 'granted') registerFcmToken(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
   }
   setTimeout(checkDbSecurity, 1500);
 }
@@ -4296,12 +4297,37 @@ function updateNotifBtn() {
 }
 function enableNotifications() {
   if (!('Notification' in window)) { toast('이 브라우저는 알림을 지원하지 않아요'); return; }
-  if (Notification.permission === 'granted') { toast('이미 알림이 켜져 있어요'); buildReminders(true); return; }
+  if (Notification.permission === 'granted') { toast('이미 알림이 켜져 있어요'); registerFcmToken(); buildReminders(true); return; }
   Notification.requestPermission().then(p => {
     updateNotifBtn();
-    if (p === 'granted') { toast('알림을 켰어요 🔔'); try { new Notification('다훈 플래너', { body: '알림이 켜졌어요. 앱을 열면 오늘 할 일·예산을 알려드릴게요.' }); } catch(e) {} }
-    else toast('알림 권한이 필요해요 (브라우저 설정에서 허용)');
+    if (p === 'granted') {
+      toast('알림을 켰어요 🔔');
+      try { new Notification('다훈 플래너', { body: '알림이 켜졌어요. 오늘 할 일·예산을 알려드릴게요.' }); } catch(e) {}
+      registerFcmToken();   // 서버 푸시용 토큰 등록 (앱 꺼져도 알림)
+    } else toast('알림 권한이 필요해요 (브라우저 설정에서 허용)');
   });
+}
+// 서버 푸시(FCM) 토큰 등록 — 이 기기를 알림 대상에 추가
+async function registerFcmToken() {
+  try {
+    if (typeof firebase === 'undefined' || !firebase.messaging) return;
+    if (firebase.messaging.isSupported && !(await firebase.messaging.isSupported())) return;
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    const messaging = firebase.messaging();
+    const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if (token) {
+      let tokens = [];
+      try { tokens = JSON.parse(dashVal('fcm_tokens') || '[]'); } catch(e) {}
+      if (!Array.isArray(tokens)) tokens = [];
+      if (!tokens.includes(token)) { tokens.push(token); dbSet('fcm_tokens', JSON.stringify(tokens)); }
+    }
+    // 앱이 열려 있을 때 오는 푸시는 토스트로
+    messaging.onMessage(payload => {
+      const n = (payload && payload.notification) || {};
+      toast((n.title ? n.title + ' · ' : '') + (n.body || '새 알림'));
+    });
+  } catch(e) { console.warn('FCM 토큰 등록 실패:', e); }
 }
 // 알림 문구 만들기 (오늘 예산 초과 / 오늘 남은 할 일 / 까먹은 일)
 function buildReminders(force) {
@@ -4739,7 +4765,8 @@ if (localStorage.getItem('dahoon_copied_week')) { const b = document.getElementB
   const sdks = [
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
-    'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js'
   ];
   let i = 0;
   (function next() {
