@@ -4776,14 +4776,42 @@ function applyJarvisSettings(s) {
   if (changed) { applySettings(); persistSettings(); if (typeof syncSettingsUI === 'function') syncSettingsUI(); if (typeof renderNav === 'function') renderNav(); }
   return changed;
 }
+// 외형/설정 변경 요청인지 (앱 꾸미기 관련 키워드)
+function isAppearanceRequest(text) {
+  return /(테마|색깔|색상|강조색|밝게|어둡게|화이트|다크|노션|꾸며|꾸미|글자|크게|작게|여백|모서리|둥글|배경\s*(색|톤)|스타일|디자인|바꿔|바꾸)/.test(text);
+}
+// Gemini + 구글 검색 연동 (실시간 웹 정보로 답변)
+async function callGeminiChat(text) {
+  const key = localStorage.getItem('dahoon_gemini_key');
+  if (!key) throw new Error('NO_GEMINI');
+  const sys = "너는 '다브스', '다훈'의 개인 비서 AI야. 한국어로 친근하고 간결하게 답해. 최신 정보나 사실 확인이 필요하면 구글 검색을 활용해 정확히 답해. 사용자 데이터도 참고해.\n\n[사용자 데이터]\n" + buildJarvisContext();
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: text }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { maxOutputTokens: 500, temperature: 0.6 }
+    })
+  });
+  const data = await res.json();
+  const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+  if (parts) { const t = parts.map(p => (p && p.text) || '').join(' ').trim(); if (t) return t; }
+  if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
+  throw new Error('NO_REPLY');
+}
 async function jarvisAskAI(text) {
   const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
   jSet('jarvisHeroReply', '🤔 생각 중...'); jSet('jarvisReply', '🤔 생각 중...');
   try {
     if (localStorage.getItem('dahoon_gemini_key')) {
-      const r = await callGeminiAI(text);                 // {say, settings}
-      const applied = applyJarvisSettings(r.settings);     // 외형 요청이면 실제 적용
-      jarvisRespond(r.say || (applied ? '적용했어요! ✨' : '네!'));
+      if (isAppearanceRequest(text)) {
+        const r = await callGeminiAI(text);                 // 외형: {say, settings}
+        const applied = applyJarvisSettings(r.settings);     // 실제 적용
+        jarvisRespond(r.say || (applied ? '적용했어요! ✨' : '네!'));
+      } else {
+        jarvisRespond(await callGeminiChat(text));            // 일반 대화 + 구글 검색
+      }
     } else if (localStorage.getItem('dahoon_ai_key')) {
       jarvisRespond(await callDavosAI(text));
     } else {
