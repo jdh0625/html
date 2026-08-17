@@ -610,6 +610,42 @@ body.theme-light .set-seg button { color: #475569; }
 .pf-leg .pf-pct { width: 48px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 @media (max-width: 768px) { .pf-wrap { justify-content: center; } .pf-legend { min-width: 100%; } }
 
+/* 🎤 다브스 음성 비서 */
+#jarvisFab {
+  position: fixed; right: 18px; bottom: calc(20px + env(safe-area-inset-bottom));
+  width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; font-size: 24px; z-index: 250;
+  box-shadow: 0 6px 20px var(--glow); display: none;
+  transition: transform .12s ease;
+}
+#app.active #jarvisFab { display: block; }
+#jarvisFab:active { transform: scale(0.92); }
+@media (max-width: 768px) { #jarvisFab { bottom: calc(72px + env(safe-area-inset-bottom)); } }
+#jarvisOverlay {
+  position: fixed; inset: 0; background: rgba(2,6,23,0.82); backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center; z-index: 500;
+}
+#jarvisOverlay.open { display: flex; }
+.jarvis-panel {
+  width: 380px; max-width: 92vw; background: var(--panel); border: 1px solid rgba(59,130,246,0.3);
+  border-radius: 20px; padding: 28px 24px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.jarvis-orb {
+  width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 18px; font-size: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 40% 35%, var(--accent2), var(--accent));
+  box-shadow: 0 0 0 0 var(--glow);
+}
+.jarvis-orb.listening { animation: jarvisPulse 1.3s ease-out infinite; }
+@keyframes jarvisPulse { 0%{box-shadow:0 0 0 0 var(--glow);} 70%{box-shadow:0 0 0 22px rgba(59,130,246,0);} 100%{box-shadow:0 0 0 0 rgba(59,130,246,0);} }
+.jarvis-status { font-size: 14px; color: var(--accent2); font-weight: 500; }
+.jarvis-heard { font-size: 16px; color: var(--text); margin-top: 12px; min-height: 20px; font-weight: 600; }
+.jarvis-reply { font-size: 14px; color: var(--text); margin-top: 12px; min-height: 18px; line-height: 1.6; white-space: pre-wrap; }
+.jarvis-hint { font-size: 11px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
+.jarvis-close { margin-top: 16px; background: rgba(255,255,255,0.08); border: none; color: var(--text); border-radius: 10px; padding: 9px 22px; font-size: 13px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; }
+@media (prefers-reduced-motion: reduce) { .jarvis-orb.listening { animation: none; } }
+
 /* ══════════════════════════════════════
    ⚙ 설정 패널
 ══════════════════════════════════════ */
@@ -1417,6 +1453,19 @@ body.theme-light .set-seg button { color: #475569; }
 
 <!-- 하단 네비게이션 (모바일) - 설정에 따라 동적 렌더링 -->
 <nav class="bottom-nav" id="bottomNav"></nav>
+
+<!-- 🎤 다브스 음성 비서 -->
+<button id="jarvisFab" onclick="startVoice()" title="다브스 (음성 명령)">🎤</button>
+<div id="jarvisOverlay" onclick="if(event.target===this)closeVoice()">
+  <div class="jarvis-panel">
+    <div class="jarvis-orb" id="jarvisOrb">🎙</div>
+    <div class="jarvis-status" id="jarvisStatus">다브스를 부르셨나요?</div>
+    <div class="jarvis-heard" id="jarvisHeard"></div>
+    <div class="jarvis-reply" id="jarvisReply"></div>
+    <div class="jarvis-hint">예: "카페 오천원", "오늘 지출 얼마야", "오늘 할 일", "총 자산 얼마야"</div>
+    <button class="jarvis-close" onclick="closeVoice()">닫기</button>
+  </div>
+</div>
 
 <!-- ⚙ 설정 / 꾸미기 패널 -->
 <div class="settings-overlay" id="settingsModal">
@@ -4492,6 +4541,137 @@ function importPortfolio() {
   if (!changed) { toast('인식된 항목이 없어요. "자산명 금액" 형식으로 입력하세요'); return; }
   savePortfolio(arr); ta.value = '';
   renderPfList(); renderHome(); toast(changed + '개 반영했어요 ✅');
+}
+
+// ══════════════════════════════════════
+// 🎤 다브스 — 음성 비서 (v1: 눌러서 말하기)
+// ══════════════════════════════════════
+let jarvisRec = null;
+function jarvisSupported() { return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window); }
+function jSet(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
+function startVoice() {
+  const ov = document.getElementById('jarvisOverlay'); if (!ov) return;
+  ov.classList.add('open');
+  jSet('jarvisHeard', ''); jSet('jarvisReply', '');
+  if (!jarvisSupported()) { jSet('jarvisStatus', '이 브라우저는 음성인식을 지원하지 않아요 (크롬 권장)'); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try { if (jarvisRec) jarvisRec.abort(); } catch(e) {}
+  jarvisRec = new SR();
+  jarvisRec.lang = 'ko-KR'; jarvisRec.interimResults = false; jarvisRec.maxAlternatives = 1;
+  jSet('jarvisStatus', '듣고 있어요…');
+  const orb = document.getElementById('jarvisOrb'); if (orb) orb.classList.add('listening');
+  jarvisRec.onresult = e => {
+    const text = (e.results[0][0].transcript || '').trim();
+    jSet('jarvisHeard', '"' + text + '"');
+    try { processVoice(text); } catch(err) { jarvisRespond('처리 중 문제가 생겼어요.'); }
+  };
+  jarvisRec.onerror = e => {
+    if (orb) orb.classList.remove('listening');
+    jSet('jarvisStatus', e.error === 'not-allowed' ? '마이크 권한을 허용해 주세요' : '못 들었어요. 다시 눌러 말해 주세요');
+  };
+  jarvisRec.onend = () => { if (orb) orb.classList.remove('listening'); };
+  try { jarvisRec.start(); } catch(e) {}
+}
+function closeVoice() {
+  try { if (jarvisRec) jarvisRec.abort(); } catch(e) {}
+  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e) {}
+  const ov = document.getElementById('jarvisOverlay'); if (ov) ov.classList.remove('open');
+  const orb = document.getElementById('jarvisOrb'); if (orb) orb.classList.remove('listening');
+}
+function jarvisSpeak(text) {
+  try {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'ko-KR'; u.rate = 1.05;
+    speechSynthesis.speak(u);
+  } catch(e) {}
+}
+function jarvisRespond(text) { jSet('jarvisStatus', '다브스'); jSet('jarvisReply', text); jarvisSpeak(text); }
+
+// 금액 파서 (아라비아 + 한글 숫자 지원: "오천원"=5000, "만이천원"=12000, "3만원"=30000, "십만원"=100000)
+function parseAmount(text) {
+  let t = text.replace(/[,\s]/g, '');
+  const wi = t.indexOf('원'); if (wi >= 0) t = t.slice(0, wi);   // '원' 앞부분만
+  if (/^\d+$/.test(t)) return parseInt(t) || null;               // 순수 숫자
+  const kmap = {'영':0,'공':0,'일':1,'이':2,'삼':3,'사':4,'오':5,'육':6,'칠':7,'팔':8,'구':9};
+  t = t.replace(/[영공일이삼사오육칠팔구]/g, c => String(kmap[c]));  // 한글 숫자 → 아라비아
+  const small = {'천':1000,'백':100,'십':10};
+  let total = 0, group = 0, numStr = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (/[0-9]/.test(c)) { numStr += c; continue; }
+    if (small[c] !== undefined) {
+      const n = numStr !== '' ? parseInt(numStr) : 1; numStr = '';
+      group += n * small[c];
+    } else if (c === '만') {
+      const n = numStr !== '' ? parseInt(numStr) : (group > 0 ? 0 : 1); numStr = '';
+      total += (group + n) * 10000; group = 0;
+    }
+    // 그 외 문자는 무시
+  }
+  const tail = numStr !== '' ? parseInt(numStr) : 0;
+  const val = total + group + tail;
+  return val > 0 ? val : null;
+}
+function detectCategory(text) {
+  const map = [['카페','☕ 카페'],['커피','☕ 카페'],['아메리카노','☕ 카페'],['라떼','☕ 카페'],['점심','🍚 식비'],['저녁','🍚 식비'],['아침','🍚 식비'],['식비','🍚 식비'],['밥','🍚 식비'],['배달','🍚 식비'],['택시','🚌 교통'],['버스','🚌 교통'],['지하철','🚌 교통'],['교통','🚌 교통'],['기차','🚌 교통'],['쇼핑','🛒 쇼핑'],['옷','🛒 쇼핑'],['마트','🏠 생활'],['생활','🏠 생활'],['약','💊 건강'],['병원','💊 건강'],['건강','💊 건강'],['영화','🎬 여가'],['여가','🎬 여가'],['게임','🎬 여가']];
+  for (const [k, v] of map) { if (text.includes(k)) return v; }
+  return '💳 기타';
+}
+function processVoice(text) {
+  const won = n => (n || 0).toLocaleString() + '원';
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
+  const led = (function(){ try { return JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) { return []; } })();
+  const todayStr = pad(m+1) + '/' + pad(now.getDate());
+  const todayExp = led.filter(r => r.type==='expense' && r.date===todayStr).reduce((s,r)=>s+(r.amt||0),0);
+  const monthExp = led.filter(r => r.type==='expense').reduce((s,r)=>s+(r.amt||0),0);
+
+  const amt = parseAmount(text);
+  const isQuestion = /(얼마|알려|뭐|보여|어때|남았|있어|줘|몇|말해|어떻게)/.test(text);
+  const hasSpendVerb = /(썼|샀|결제|냈|먹었|탔|기록|적어|썻)/.test(text);
+  const cat = detectCategory(text);
+  const hasCat = cat !== '💳 기타';
+
+  // ── 지출 기록 ──
+  if (amt && !isQuestion && (hasSpendVerb || hasCat)) {
+    const desc = cat.replace(/^\S+\s/, '');
+    led.unshift({ id: Date.now(), date: todayStr, iso: dateToKey(now), type: 'expense', desc, cat, amt });
+    dbSet('ledger-'+y+'-'+m, JSON.stringify(led));
+    if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear()===y && ledgerCurrent.getMonth()===m) { ledgerData = led; if (typeof renderLedger === 'function') renderLedger(); }
+    renderHome();
+    jarvisRespond(desc + ' ' + won(amt) + ' 기록했어요.');
+    return;
+  }
+  // ── 조회 ──
+  if (/(할일|할 일|일정)/.test(text)) {
+    const t = readDayTasks(dateToKey(now));
+    const arr = []; if (t.am) arr.push('오전, ' + t.am); if (t.pm) arr.push('오후, ' + t.pm);
+    jarvisRespond(arr.length ? '오늘 할 일은 ' + arr.join('. ') + ' 이에요.' : '오늘 등록된 할 일이 없어요.');
+    return;
+  }
+  if (/(자산|포트|주식|코인)/.test(text)) {
+    const pf = getPortfolio(); const total = pf.reduce((s,h)=>s+(h.amt||0),0);
+    if (!total) { jarvisRespond('등록된 자산이 없어요.'); return; }
+    const top = pf.slice().sort((a,b)=>b.amt-a.amt)[0];
+    jarvisRespond('총 자산은 ' + won(total) + '이고, 가장 큰 비중은 ' + top.name + ', ' + Math.round(top.amt/total*100) + '퍼센트예요.');
+    return;
+  }
+  if (/(예산|여유|남은)/.test(text)) {
+    let goals = {}; try { goals = JSON.parse(dashVal('budget_goals') || '{}'); } catch(e) {}
+    const mb = parseInt(dashVal('budget-'+y+'-'+m) || goals.monthly || 0) || 0;
+    let fixed = []; try { fixed = JSON.parse(dashVal('fixed_expenses') || '[]'); } catch(e) {}
+    const ft = fixed.reduce((s,f)=>s+(f.amt||0),0);
+    if (!mb) { jarvisRespond('이번 달 예산이 아직 없어요. 이번 달 지출은 ' + won(monthExp) + '이에요.'); return; }
+    jarvisRespond('이번 달 여유 예산은 ' + won(mb - ft - monthExp) + '이에요. 지출은 ' + won(monthExp) + '.');
+    return;
+  }
+  if (/(지출|썼|얼마)/.test(text)) {
+    const daily = parseInt(dashVal('daily_budget') || 0) || 0;
+    jarvisRespond('오늘 ' + won(todayExp) + ' 썼어요.' + (daily ? ' 하루 예산 ' + won(daily) + ' 중 ' + won(Math.max(0, daily-todayExp)) + ' 남았어요.' : ''));
+    return;
+  }
+  // ── 못 알아들음 ──
+  jarvisRespond('오늘 지출은 ' + won(todayExp) + '이에요. "카페 오천원"처럼 말하면 기록하고, "오늘 할 일"이나 "총 자산"을 물으면 알려드려요.');
 }
 
 // ══════════════════════════════════════
