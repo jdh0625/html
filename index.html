@@ -610,6 +610,41 @@ body.theme-light .set-seg button { color: #475569; }
 .pf-leg .pf-pct { width: 48px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 @media (max-width: 768px) { .pf-wrap { justify-content: center; } .pf-legend { min-width: 100%; } }
 
+/* 🤖 다브스 AI 메인 카드 */
+.jarvis-hero {
+  background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(139,92,246,0.12));
+  border: 1px solid rgba(96,165,250,0.35);
+  border-radius: 16px; padding: 16px 16px 14px; margin-bottom: 14px;
+}
+.jarvis-hero-top { display: flex; gap: 12px; align-items: flex-start; }
+.jarvis-hero-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex: none; font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 40% 35%, var(--accent2), var(--accent));
+}
+.jarvis-hero-avatar.thinking { animation: jarvisPulse 1.2s ease-out infinite; }
+.jarvis-hero-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.jarvis-hero-name span { font-size: 11px; color: var(--accent2); font-weight: 500; margin-left: 4px; }
+.jarvis-hero-reply { font-size: 13.5px; color: var(--text); margin-top: 4px; line-height: 1.55; white-space: pre-wrap; }
+.jarvis-hero-input { display: flex; gap: 7px; margin-top: 14px; }
+.jarvis-hero-input input {
+  flex: 1; min-width: 0; background: var(--panel2); border: 1px solid rgba(96,165,250,0.3);
+  color: var(--text); border-radius: 10px; padding: 11px 13px; font-size: 14px; outline: none;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.jarvis-hero-input button {
+  flex: none; border: none; cursor: pointer; border-radius: 10px; width: 44px; font-size: 16px;
+  background: var(--accent); color: #fff;
+}
+.jarvis-hero-input button.mic { background: rgba(255,255,255,0.1); }
+.jarvis-hero-input button:active { transform: scale(0.94); }
+.jarvis-hero-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+.jarvis-hero-chips button {
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); color: var(--text);
+  border-radius: 20px; padding: 6px 13px; font-size: 12px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
+}
+.jarvis-hero-chips button:hover { background: rgba(59,130,246,0.2); }
+
 /* 🎤 다브스 음성 비서 */
 #jarvisFab {
   position: fixed; right: 18px; bottom: calc(20px + env(safe-area-inset-bottom));
@@ -792,9 +827,31 @@ body.theme-light .set-seg button { color: #475569; }
 
     <!-- 🏠 홈 대시보드 -->
     <div id="homeView">
-      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;position:relative;">
-        <h1 style="margin:0;">🏠 오늘 한눈에</h1>
-        <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="position:absolute;right:0;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;">🔔 알림 켜기</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
+        <h1 style="margin:0;font-size:16px;">🏠 오늘 한눈에</h1>
+        <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">🔔 알림 켜기</button>
+      </div>
+
+      <!-- 🤖 다브스 AI 메인 -->
+      <div class="jarvis-hero">
+        <div class="jarvis-hero-top">
+          <div class="jarvis-hero-avatar" id="jarvisHeroAvatar">🤖</div>
+          <div>
+            <div class="jarvis-hero-name">다브스 <span>AI 비서</span></div>
+            <div class="jarvis-hero-reply" id="jarvisHeroReply">무엇이든 물어보거나 말해보세요.</div>
+          </div>
+        </div>
+        <div class="jarvis-hero-input">
+          <input id="jarvisInput" placeholder="예: 카페 오천원 / 오늘 지출 얼마야" onkeydown="if(event.key==='Enter')sendJarvisText()" />
+          <button onclick="sendJarvisText()" title="전송">➤</button>
+          <button onclick="startVoice()" class="mic" title="음성으로">🎤</button>
+        </div>
+        <div class="jarvis-hero-chips">
+          <button onclick="jarvisChip('오늘 지출 얼마야')">💸 오늘 지출</button>
+          <button onclick="jarvisChip('오늘 할 일')">✅ 오늘 할 일</button>
+          <button onclick="jarvisChip('총 자산 얼마야')">📊 자산</button>
+          <button onclick="jarvisChip('이번 달 여유 얼마야')">💰 여유 예산</button>
+        </div>
       </div>
       <div class="dash-grid">
         <div class="dash-card">
@@ -4587,7 +4644,64 @@ function jarvisSpeak(text) {
     speechSynthesis.speak(u);
   } catch(e) {}
 }
-function jarvisRespond(text) { jSet('jarvisStatus', '다브스'); jSet('jarvisReply', text); jarvisSpeak(text); }
+function jarvisRespond(text) {
+  jSet('jarvisStatus', '다브스');
+  jSet('jarvisReply', text);
+  jSet('jarvisHeroReply', text);   // 홈 메인 카드에도 표시
+  jarvisSpeak(text);
+}
+// 텍스트로 다브스에게 (음성 안 돼도 확인 가능)
+function sendJarvisText() {
+  const inp = document.getElementById('jarvisInput');
+  const text = inp && inp.value.trim();
+  if (!text) return;
+  if (inp) inp.value = '';
+  jSet('jarvisHeroReply', '…');
+  try { processVoice(text); } catch(e) { jarvisRespond('처리 중 문제가 생겼어요.'); }
+}
+function jarvisChip(text) { jSet('jarvisHeroReply', '…'); try { processVoice(text); } catch(e) {} }
+
+// ── AI 자유 대화 (설정 > AI 키가 있을 때) ──
+function buildJarvisContext() {
+  const won = n => (n||0).toLocaleString()+'원';
+  const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
+  let led=[]; try{led=JSON.parse(dashVal('ledger-'+y+'-'+m)||'[]');}catch(e){}
+  const todayStr=pad(m+1)+'/'+pad(now.getDate());
+  const todayExp=led.filter(r=>r.type==='expense'&&r.date===todayStr).reduce((s,r)=>s+(r.amt||0),0);
+  const monthExp=led.filter(r=>r.type==='expense').reduce((s,r)=>s+(r.amt||0),0);
+  let goals={};try{goals=JSON.parse(dashVal('budget_goals')||'{}');}catch(e){}
+  const mb=parseInt(dashVal('budget-'+y+'-'+m)||goals.monthly||0)||0;
+  let fixed=[];try{fixed=JSON.parse(dashVal('fixed_expenses')||'[]');}catch(e){}
+  const ft=fixed.reduce((s,f)=>s+(f.amt||0),0);
+  const pf=getPortfolio(); const pfTotal=pf.reduce((s,h)=>s+(h.amt||0),0);
+  const pfTop=pf.slice().sort((a,b)=>b.amt-a.amt).slice(0,3).map(h=>h.name+' '+won(h.amt)).join(', ')||'없음';
+  const t=readDayTasks(dateToKey(now));
+  const tasks=[t.am?('오전:'+t.am):null,t.pm?('오후:'+t.pm):null].filter(Boolean).join(', ')||'없음';
+  return `오늘 날짜: ${y}-${pad(m+1)}-${pad(now.getDate())}\n오늘 지출: ${won(todayExp)}\n이번달 지출: ${won(monthExp)}\n월 예산: ${mb?won(mb):'미설정'}, 고정지출: ${won(ft)}, 여유예산: ${mb?won(mb-ft-monthExp):'-'}\n오늘 할 일: ${tasks}\n총 자산: ${won(pfTotal)} (상위: ${pfTop})`;
+}
+async function callDavosAI(text) {
+  const key = localStorage.getItem('dahoon_ai_key');
+  if (!key) throw new Error('NO_KEY');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514', max_tokens: 300,
+      system: "너는 '다브스', 사용자 '다훈'의 개인 비서 AI야. 한국어로 친근하고 아주 간결하게(2~3문장) 답해. 아래 사용자 데이터를 참고해 답하고, 모르면 솔직히 말해.\n\n[사용자 데이터]\n" + buildJarvisContext(),
+      messages: [{ role: 'user', content: text }]
+    })
+  });
+  const data = await res.json();
+  if (data && data.content && data.content[0] && data.content[0].text) return data.content[0].text.trim();
+  throw new Error('NO_REPLY');
+}
+async function jarvisAskAI(text) {
+  const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
+  jSet('jarvisHeroReply', '🤔 생각 중...'); jSet('jarvisReply', '🤔 생각 중...');
+  try { jarvisRespond(await callDavosAI(text)); }
+  catch(e) { jarvisRespond('지금은 AI 답변을 못 받았어요. (설정 > AI 에서 키를 확인해 주세요)'); }
+  finally { if (av) av.classList.remove('thinking'); }
+}
 
 // 금액 파서 (아라비아 + 한글 숫자 지원: "오천원"=5000, "만이천원"=12000, "3만원"=30000, "십만원"=100000)
 function parseAmount(text) {
@@ -4671,8 +4785,9 @@ function processVoice(text) {
     jarvisRespond('오늘 ' + won(todayExp) + ' 썼어요.' + (daily ? ' 하루 예산 ' + won(daily) + ' 중 ' + won(Math.max(0, daily-todayExp)) + ' 남았어요.' : ''));
     return;
   }
-  // ── 못 알아들음 ──
-  jarvisRespond('오늘 지출은 ' + won(todayExp) + '이에요. "카페 오천원"처럼 말하면 기록하고, "오늘 할 일"이나 "총 자산"을 물으면 알려드려요.');
+  // ── 못 알아들음 → AI 키 있으면 자유 대화, 없으면 도움말 ──
+  if (localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
+  jarvisRespond('오늘 지출은 ' + won(todayExp) + '이에요. "카페 오천원"처럼 말하면 기록하고, "오늘 할 일"·"총 자산"을 물으면 알려드려요. (설정 > AI 에 키를 넣으면 자유 대화도 돼요)');
 }
 
 // ══════════════════════════════════════
