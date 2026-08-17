@@ -631,12 +631,28 @@ body.theme-light .dash-task input[type=checkbox], body.theme-light input[type=ch
 }
 .jarvis-hero-top { display: flex; gap: 12px; align-items: flex-start; }
 .jarvis-hero-avatar {
-  width: 44px; height: 44px; border-radius: 50%; flex: none; font-size: 22px;
+  width: 46px; height: 46px; border-radius: 50%; flex: none; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 40% 35%, var(--accent2), var(--accent));
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
 }
+.jarvis-hero-avatar svg { display: block; }
 .jarvis-hero-avatar.thinking { animation: jarvisPulse 1.2s ease-out infinite; }
-.jarvis-hero-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.jarvis-new {
+  flex: none; align-self: flex-start; background: rgba(255,255,255,0.08); border: none;
+  color: var(--muted); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 16px;
+}
+.jarvis-new:hover { color: var(--text); }
+.jarvis-ai-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,0.08); }
+.jarvis-ai-links .jal-label { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.jarvis-ai-links a {
+  font-size: 11.5px; color: var(--text); background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 4px 11px; text-decoration: none; white-space: nowrap;
+}
+.jarvis-ai-links a:hover { background: rgba(96,165,250,0.18); border-color: rgba(96,165,250,0.4); }
+body.theme-light .jarvis-ai-links a { background: #f0efed; border-color: #e3e2df; color: #37352f; }
+body.theme-light .jarvis-ai-links { border-top-color: #e6e5e2; }
+body.theme-light .jarvis-new { background: #f0efed; }
+.jarvis-hero-name { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
 .jarvis-hero-name span { font-size: 11px; color: var(--accent2); font-weight: 500; margin-left: 4px; }
 .jarvis-hero-reply { font-size: 13.5px; color: var(--text); margin-top: 4px; line-height: 1.55; white-space: pre-wrap; }
 .jarvis-hero-input { display: flex; gap: 7px; margin-top: 14px; }
@@ -845,14 +861,28 @@ body.theme-light .dash-task input[type=checkbox], body.theme-light input[type=ch
         <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">🔔 알림 켜기</button>
       </div>
 
-      <!-- 🤖 다브스 AI 메인 -->
+      <!-- 다브스 AI 메인 -->
       <div class="jarvis-hero">
         <div class="jarvis-hero-top">
-          <div class="jarvis-hero-avatar" id="jarvisHeroAvatar">🤖</div>
-          <div>
-            <div class="jarvis-hero-name">다브스 <span>AI 비서</span></div>
+          <div class="jarvis-hero-avatar" id="jarvisHeroAvatar">
+            <svg viewBox="0 0 48 48" width="100%" height="100%" aria-hidden="true">
+              <defs>
+                <radialGradient id="dbCore" cx="0.38" cy="0.32" r="0.85">
+                  <stop offset="0" stop-color="#ffffff"/><stop offset="0.55" stop-color="#c7ccd6"/><stop offset="1" stop-color="#5b6270"/>
+                </radialGradient>
+              </defs>
+              <circle cx="24" cy="24" r="23" fill="#0c0d12"/>
+              <circle cx="24" cy="24" r="16.5" fill="none" stroke="#ffffff" stroke-width="0.8" opacity="0.18"/>
+              <circle cx="24" cy="24" r="11" fill="none" stroke="#ffffff" stroke-width="0.8" opacity="0.28"/>
+              <circle cx="24" cy="24" r="6.5" fill="url(#dbCore)"/>
+              <circle cx="37.5" cy="13.5" r="1.7" fill="#ffffff" opacity="0.9"/>
+            </svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="jarvis-hero-name">DABS <span>· AI</span></div>
             <div class="jarvis-hero-reply" id="jarvisHeroReply">무엇이든 물어보거나 말해보세요.</div>
           </div>
+          <button class="jarvis-new" onclick="clearJarvisChat()" title="새 대화">↺</button>
         </div>
         <div class="jarvis-hero-input">
           <input id="jarvisInput" placeholder="예: 카페 오천원 / 오늘 지출 얼마야" onkeydown="if(event.key==='Enter')sendJarvisText()" />
@@ -864,6 +894,14 @@ body.theme-light .dash-task input[type=checkbox], body.theme-light input[type=ch
           <button onclick="jarvisChip('오늘 할 일')">✅ 오늘 할 일</button>
           <button onclick="jarvisChip('총 자산 얼마야')">📊 자산</button>
           <button onclick="jarvisChip('이번 달 여유 얼마야')">💰 여유 예산</button>
+        </div>
+        <div class="jarvis-ai-links">
+          <span class="jal-label">AI 바로가기</span>
+          <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a>
+          <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>
+          <a href="https://chatgpt.com" target="_blank" rel="noopener">GPT</a>
+          <a href="https://chatgpt.com/codex" target="_blank" rel="noopener">Codex</a>
+          <a href="https://gemini.google.com/app" target="_blank" rel="noopener">Gemini</a>
         </div>
       </div>
       <div class="dash-grid">
@@ -1865,7 +1903,7 @@ function enterApp(user) {
   if (davosAutoListen) { davosAutoListen = false; setTimeout(() => { try { startVoice(); } catch(e) {} }, 1000); }
   if (!appDataLoaded) {
     appDataLoaded = true;
-    openDB().then(() => { renderMonth(); load().then(() => { renderHome(); updateNotifBtn(); if (('Notification' in window) && Notification.permission === 'granted') registerFcmToken(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
+    openDB().then(() => { renderMonth(); load().then(() => { loadJarvisHistory(); renderHome(); updateNotifBtn(); if (('Notification' in window) && Notification.permission === 'granted') registerFcmToken(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
   }
   setTimeout(checkDbSecurity, 1500);
 }
@@ -1873,7 +1911,7 @@ function enterApp(user) {
 function exitApp() {
   currentUser = null;
   appDataLoaded = false;
-  if (typeof jarvisHistory !== 'undefined') jarvisHistory = [];   // 대화 기억 초기화
+  // 대화 기억은 DB에 저장돼 있어 재접속 시 복원됨 (현존 AI처럼 흐름 유지)
   detachDataListener();
   pendingUpdates = {};          // 로그아웃 후 잔여 쓰기 시도 방지
   clearTimeout(saveTimer);
@@ -4653,11 +4691,21 @@ function importPortfolio() {
 // ══════════════════════════════════════
 let jarvisRec = null;
 // ── 대화 기억 (멀티턴) ──
-let jarvisHistory = [];   // [{role:'user'|'model', text}]
+let jarvisHistory = [];   // [{role:'user'|'model', text}]  — DB에 영구 저장(로그아웃/재접속해도 유지)
+function persistJarvisHistory() { try { dbSet('jarvis_history', JSON.stringify(jarvisHistory.slice(-40))); } catch(e) {} }
+function loadJarvisHistory() {
+  try { const h = JSON.parse(dashVal('jarvis_history') || '[]'); if (Array.isArray(h)) jarvisHistory = h; } catch(e) {}
+}
 function pushHistory(role, text) {
   if (!text) return;
   jarvisHistory.push({ role, text: String(text) });
-  if (jarvisHistory.length > 12) jarvisHistory = jarvisHistory.slice(-12);   // 최근 6턴만 유지
+  if (jarvisHistory.length > 40) jarvisHistory = jarvisHistory.slice(-40);   // 최근 20턴 보관
+  persistJarvisHistory();
+}
+function clearJarvisChat() {
+  jarvisHistory = []; persistJarvisHistory();
+  jSet('jarvisHeroReply', '새 대화를 시작해요. 무엇이든 물어보세요.');
+  toast('대화를 초기화했어요');
 }
 function jarvisContents(fallbackText) {
   // Gemini contents는 user로 시작해 user/model 교대해야 함 → 정리
