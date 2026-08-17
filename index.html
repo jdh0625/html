@@ -1873,6 +1873,7 @@ function enterApp(user) {
 function exitApp() {
   currentUser = null;
   appDataLoaded = false;
+  if (typeof jarvisHistory !== 'undefined') jarvisHistory = [];   // 대화 기억 초기화
   detachDataListener();
   pendingUpdates = {};          // 로그아웃 후 잔여 쓰기 시도 방지
   clearTimeout(saveTimer);
@@ -4651,6 +4652,27 @@ function importPortfolio() {
 // 🎤 다브스 — 음성 비서 (v1: 눌러서 말하기)
 // ══════════════════════════════════════
 let jarvisRec = null;
+// ── 대화 기억 (멀티턴) ──
+let jarvisHistory = [];   // [{role:'user'|'model', text}]
+function pushHistory(role, text) {
+  if (!text) return;
+  jarvisHistory.push({ role, text: String(text) });
+  if (jarvisHistory.length > 12) jarvisHistory = jarvisHistory.slice(-12);   // 최근 6턴만 유지
+}
+function jarvisContents(fallbackText) {
+  // Gemini contents는 user로 시작해 user/model 교대해야 함 → 정리
+  const h = jarvisHistory.filter(x => x && x.text);
+  const out = [];
+  h.forEach(x => {
+    if (!out.length && x.role !== 'user') return;           // 첫 항목은 user부터
+    if (out.length && out[out.length-1].role === x.role) {  // 같은 역할 연속이면 합침
+      out[out.length-1].parts[0].text += '\n' + x.text; return;
+    }
+    out.push({ role: x.role, parts: [{ text: x.text }] });
+  });
+  if (!out.length || out[out.length-1].role !== 'user') out.push({ role:'user', parts:[{ text: fallbackText }] });
+  return out;
+}
 function jarvisSupported() { return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window); }
 function jSet(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
 function startVoice() {
@@ -4694,6 +4716,7 @@ function jarvisRespond(text) {
   jSet('jarvisStatus', '다브스');
   jSet('jarvisReply', text);
   jSet('jarvisHeroReply', text);   // 홈 메인 카드에도 표시
+  pushHistory('model', text);      // 대화 기억
   jarvisSpeak(text);
 }
 // 텍스트로 다브스에게 (음성 안 돼도 확인 가능)
@@ -4762,7 +4785,7 @@ async function callGeminiAI(text) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: sys }] },
-      contents: [{ role: 'user', parts: [{ text: text }] }],
+      contents: jarvisContents(text),
       generationConfig: { maxOutputTokens: 400, temperature: 0.5, responseMimeType: 'application/json' }
     })
   });
@@ -4803,7 +4826,7 @@ async function callGeminiChat(text) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: sys }] },
-      contents: [{ role: 'user', parts: [{ text: text }] }],
+      contents: jarvisContents(text),
       tools: [{ google_search: {} }],
       generationConfig: { maxOutputTokens: 500, temperature: 0.6 }
     })
@@ -4867,6 +4890,7 @@ function detectCategory(text) {
   return '💳 기타';
 }
 function processVoice(text) {
+  pushHistory('user', text);   // 대화 기억
   const won = n => (n || 0).toLocaleString() + '원';
   const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
   const led = (function(){ try { return JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) { return []; } })();
