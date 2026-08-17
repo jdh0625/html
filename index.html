@@ -673,6 +673,9 @@ body.theme-light .jarvis-new { background: #f0efed; }
   border-radius: 20px; padding: 6px 13px; font-size: 12px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif;
 }
 .jarvis-hero-chips button:hover { background: rgba(59,130,246,0.2); }
+.jarvis-image { display: block; margin-top: 12px; line-height: 0; }
+.jarvis-image img { width: 100%; max-width: 320px; border-radius: 12px; display: block; border: 1px solid rgba(255,255,255,0.1); }
+body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 
 /* 🎤 다브스 음성 비서 */
 #jarvisFab {
@@ -884,8 +887,9 @@ body.theme-light .jarvis-new { background: #f0efed; }
           </div>
           <button class="jarvis-new" onclick="clearJarvisChat()" title="새 대화">↺</button>
         </div>
+        <a id="jarvisImage" class="jarvis-image" href="#" target="_blank" rel="noopener" hidden><img id="jarvisImageImg" alt="다브스 생성 이미지" /></a>
         <div class="jarvis-hero-input">
-          <input id="jarvisInput" placeholder="예: 카페 오천원 / 오늘 지출 얼마야" onkeydown="if(event.key==='Enter')sendJarvisText()" />
+          <input id="jarvisInput" placeholder="예: 카페 오천원 / 고양이 그려줘 / 오늘 지출" onkeydown="if(event.key==='Enter')sendJarvisText()" />
           <button onclick="sendJarvisText()" title="전송">➤</button>
           <button onclick="startVoice()" class="mic" title="음성으로">🎤</button>
         </div>
@@ -4705,7 +4709,30 @@ function pushHistory(role, text) {
 function clearJarvisChat() {
   jarvisHistory = []; persistJarvisHistory();
   jSet('jarvisHeroReply', '새 대화를 시작해요. 무엇이든 물어보세요.');
+  const a = document.getElementById('jarvisImage'); if (a) a.hidden = true;
   toast('대화를 초기화했어요');
+}
+
+// ── 이미지 생성 (무료, 키 불필요) ──
+function isImageRequest(text) {
+  return /(그려\s*줘|그려|그림\s*(그|만들|생성)|이미지\s*(만들|생성|그려|줘|보여)|사진\s*(만들|생성)|만들어\s*줘.*(그림|이미지)|일러스트)/.test(text) && !/(지출|예산|자산|차트|그래프)/.test(text);
+}
+function jarvisImagePrompt(text) {
+  return text.replace(/(그려\s*줘|그려|그림을|그림|이미지를|이미지|일러스트|만들어\s*줘|만들어|생성해\s*줘|생성|사진을|사진|좀|해\s*줘|주세요|보여\s*줘)/g, ' ').replace(/\s+/g, ' ').trim() || text;
+}
+function jarvisGenerateImage(text) {
+  const prompt = jarvisImagePrompt(text);
+  const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
+  jSet('jarvisHeroReply', '🎨 "' + prompt + '" 그리는 중…'); jSet('jarvisReply', '🎨 그리는 중…');
+  const a = document.getElementById('jarvisImage');
+  const img = document.getElementById('jarvisImageImg');
+  const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) + '?width=768&height=768&nologo=true&seed=' + Date.now();
+  if (a && img) {
+    a.hidden = true; a.href = url;
+    img.onload = () => { a.hidden = false; if (av) av.classList.remove('thinking'); jarvisRespond('"' + prompt + '" 그렸어요! 🎨 (탭하면 크게 보기)'); };
+    img.onerror = () => { if (av) av.classList.remove('thinking'); jarvisRespond('이미지를 못 만들었어요. 잠시 후 다시 시도해 주세요.'); };
+    img.src = url;
+  }
 }
 function jarvisContents(fallbackText) {
   // Gemini contents는 user로 시작해 user/model 교대해야 함 → 정리
@@ -4944,6 +4971,7 @@ function detectCategory(text) {
 }
 function processVoice(text) {
   pushHistory('user', text);   // 대화 기억
+  if (isImageRequest(text)) { jarvisGenerateImage(text); return; }   // 이미지 생성
   const won = n => (n || 0).toLocaleString() + '원';
   const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
   const led = (function(){ try { return JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) { return []; } })();
