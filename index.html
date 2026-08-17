@@ -4324,7 +4324,7 @@ async function registerFcmToken() {
     }
     // 앱이 열려 있을 때 오는 푸시는 토스트로
     messaging.onMessage(payload => {
-      const n = (payload && payload.notification) || {};
+      const n = (payload && (payload.data || payload.notification)) || {};
       toast((n.title ? n.title + ' · ' : '') + (n.body || '새 알림'));
     });
   } catch(e) { console.warn('FCM 토큰 등록 실패:', e); }

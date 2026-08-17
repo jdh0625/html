@@ -64,7 +64,8 @@ const won = n => (n || 0).toLocaleString('ko-KR') + '원';
   const invalid = [];
   for (const token of tokens) {
     try {
-      await admin.messaging().send({ token, notification: { title, body } });
+      // data 전용 메시지 → 서비스워커가 알림을 1회만 표시 (중복 방지)
+      await admin.messaging().send({ token, data: { title: String(title), body: String(body) } });
       console.log('전송 성공:', token.slice(0, 12) + '...');
     } catch (e) {
       console.log('전송 실패:', token.slice(0, 12) + '...', e.code || e.message);

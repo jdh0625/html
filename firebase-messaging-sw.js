@@ -16,7 +16,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(function(payload) {
-  const n = (payload && payload.notification) || {};
+  const n = (payload && (payload.data || payload.notification)) || {};
   self.registration.showNotification(n.title || '다훈 플래너', {
     body: n.body || '',
     icon: './icon-192.png',
