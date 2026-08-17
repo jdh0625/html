@@ -1734,6 +1734,8 @@ body.theme-light .set-seg button { color: #475569; }
 // ★ 이전의 하드코딩된 비밀번호/생년월일 방식 제거 → 실제 인증으로 교체
 const OWNER_EMAIL = 'jftgj00625@gmail.com';   // 데이터 접근을 허용할 소유자 이메일 (보안 규칙과 일치시킬 것)
 const VAPID_KEY = 'BJqHjLJPlFinR_tPxx68caJOQ3qTh9V-7gYwJwOd48bDOipJZIpA0mGC_XLfBmdOsVlHWo_XRKjcJDecrLngpjQ';   // 웹 푸시 공개키 (서버 푸시용)
+// ?voice=1 또는 #voice 로 열리면 다브스 듣기 모드 자동 시작 (웨이크워드 루틴 연동)
+let davosAutoListen = (location.search.indexOf('voice') !== -1) || (location.hash.indexOf('voice') !== -1);
 let currentUser = null;
 let authMode = 'login';   // 'login' | 'signup'
 let appDataLoaded = false;
@@ -1846,6 +1848,8 @@ function enterApp(user) {
   const label = document.getElementById('userLabel');
   if (label) label.textContent = user.email ? user.email.split('@')[0] : '사용자';
   attachDataListener();   // 실시간 동기화는 인증 이후에만
+  // 딥링크로 열렸으면(?voice=1 / #voice) 다브스 듣기 모드 자동 시작 (웨이크워드 연동용)
+  if (davosAutoListen) { davosAutoListen = false; setTimeout(() => { try { startVoice(); } catch(e) {} }, 1000); }
   if (!appDataLoaded) {
     appDataLoaded = true;
     openDB().then(() => { renderMonth(); load().then(() => { renderHome(); updateNotifBtn(); if (('Notification' in window) && Notification.permission === 'granted') registerFcmToken(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
