@@ -25,12 +25,14 @@ const won = n => (n || 0).toLocaleString('ko-KR') + '원';
   const todayStr = `${pad(m + 1)}/${pad(d)}`;
 
   let led = []; try { led = JSON.parse(get('ledger-' + y + '-' + m) || '[]'); } catch (e) {}
+  if (!Array.isArray(led)) led = [];
   const todayExp = led.filter(r => r.type === 'expense' && r.date === todayStr).reduce((s, r) => s + (r.amt || 0), 0);
   const monthExp = led.filter(r => r.type === 'expense').reduce((s, r) => s + (r.amt || 0), 0);
 
   let goals = {}; try { goals = JSON.parse(get('budget_goals') || '{}'); } catch (e) {}
   const monthBudget = parseInt(get('budget-' + y + '-' + m) || goals.monthly || 0) || 0;
   let fixed = []; try { fixed = JSON.parse(get('fixed_expenses') || '[]'); } catch (e) {}
+  if (!Array.isArray(fixed)) fixed = [];
   const fixedTotal = fixed.reduce((s, f) => s + (f.amt || 0), 0);
   const daily = parseInt(get('daily_budget') || 0) || 0;
 
@@ -69,7 +71,8 @@ const won = n => (n || 0).toLocaleString('ko-KR') + '원';
       console.log('전송 성공:', token.slice(0, 12) + '...');
     } catch (e) {
       console.log('전송 실패:', token.slice(0, 12) + '...', e.code || e.message);
-      if (e.code === 'messaging/registration-token-not-registered' || e.code === 'messaging/invalid-argument') invalid.push(token);
+      // 확실히 죽은 토큰만 제거 (invalid-argument는 일시적 요청 오류일 수 있어 제외)
+      if (e.code === 'messaging/registration-token-not-registered') invalid.push(token);
     }
   }
   if (invalid.length) {

@@ -2469,7 +2469,7 @@ function rowHtml(r) {
   return `<div id="ledger-row-${r.id}" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 80px;padding:9px 14px;border-bottom:1px solid rgba(59,130,246,0.05);align-items:center;font-size:13px;">
     <span style="color:var(--muted);font-size:11px;">${r.date}</span>
     <span style="font-size:11px;color:${r.type==='income'?'#4ade80':'#f87171'}">${r.type==='income'?'💵 수입':'💸 지출'}</span>
-    <span id="ledger-desc-${r.id}" onclick="editLedgerField(${r.id},'desc')" style="cursor:pointer;" title="클릭하여 수정">${r.desc}</span>
+    <span id="ledger-desc-${r.id}" onclick="editLedgerField(${r.id},'desc')" style="cursor:pointer;" title="클릭하여 수정">${(typeof escHtml==='function'?escHtml(r.desc||''):(r.desc||''))}</span>
     <span id="ledger-cat-${r.id}">
       <select onchange="editLedgerCat(${r.id},this.value)" style="background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;width:100%;">
         ${catOpts}
@@ -4362,7 +4362,8 @@ async function registerFcmToken() {
     if (typeof firebase === 'undefined' || !firebase.messaging) return;
     if (firebase.messaging.isSupported && !(await firebase.messaging.isSupported())) return;
     if (!('serviceWorker' in navigator)) return;
-    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    // 전용 스코프로 등록 → PWA 캐시용 sw.js(/html/)와 충돌 방지
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: 'firebase-cloud-messaging-push-scope' });
     const messaging = firebase.messaging();
     const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (token) {
