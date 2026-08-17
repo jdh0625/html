@@ -4760,21 +4760,32 @@ if (localStorage.getItem('dahoon_copied_week')) { const b = document.getElementB
 
 
 
-// Firebase SDK 로드 (순서 보장: app → auth → database)
+// Firebase SDK 로드 (핵심: app → auth → database 순서 보장)
+// ★ 메시징(FCM)은 '선택'이라 핵심 로드/초기화(=로그인) 완료 후 별도·비차단으로 로드.
+//   메시징 로드가 실패해도 로그인/앱은 절대 영향받지 않도록 함.
 (function loadFirebaseSDK() {
-  const sdks = [
+  const core = [
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
     'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js',
-    'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
-    'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js'
+    'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'
   ];
-  let i = 0;
+  const messagingSrc = 'https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js';
+  let i = 0, started = false;
+  function startApp() {
+    if (started) return; started = true;
+    initFirebase();
+    // 메시징은 나중에, 실패해도 무시 (알림 기능만 비활성, 로그인에는 무영향)
+    const ms = document.createElement('script');
+    ms.src = messagingSrc;
+    ms.onerror = () => {};
+    document.head.appendChild(ms);
+  }
   (function next() {
-    if (i >= sdks.length) { initFirebase(); return; }
+    if (i >= core.length) { startApp(); return; }
     const s = document.createElement('script');
-    s.src = sdks[i++];
+    s.src = core[i++];
     s.onload = next;
-    s.onerror = () => setFbStatus('⚠ 오프라인 모드', '#fbbf24');
+    s.onerror = () => { setFbStatus('⚠ 오프라인 모드', '#fbbf24'); next(); };  // 한 개 실패해도 진행
     document.head.appendChild(s);
   })();
 })();

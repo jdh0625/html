@@ -1,6 +1,6 @@
 /* Da Hoon Planner - Service Worker
    앱 셸을 캐시해 오프라인에서도 열리게 하고, 온라인일 땐 최신본을 우선 사용 */
-const CACHE = 'dahoon-planner-v2';
+const CACHE = 'dahoon-planner-v3';
 const SHELL = [
   './',
   './index.html',
