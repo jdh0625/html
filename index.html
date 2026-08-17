@@ -743,7 +743,10 @@ body.theme-light .set-seg button { color: #475569; }
 
     <!-- 🏠 홈 대시보드 -->
     <div id="homeView">
-      <h1 style="margin-bottom:14px;">🏠 오늘 한눈에</h1>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;position:relative;">
+        <h1 style="margin:0;">🏠 오늘 한눈에</h1>
+        <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="position:absolute;right:0;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;">🔔 알림 켜기</button>
+      </div>
       <div class="dash-grid">
         <div class="dash-card">
           <div class="dash-card-title">💰 이번 달 예산</div>
@@ -1644,7 +1647,7 @@ function enterApp(user) {
   attachDataListener();   // 실시간 동기화는 인증 이후에만
   if (!appDataLoaded) {
     appDataLoaded = true;
-    openDB().then(() => { renderMonth(); load().then(() => renderHome()); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
+    openDB().then(() => { renderMonth(); load().then(() => { renderHome(); updateNotifBtn(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
   }
   setTimeout(checkDbSecurity, 1500);
 }
@@ -4188,6 +4191,54 @@ setInterval(() => {
   const home = document.getElementById('homeView');
   if (home && !home.classList.contains('hidden') && document.getElementById('app').classList.contains('active')) renderHome();
 }, 60000);
+
+// ── 알림 (앱 열었을 때: 예산 초과·오늘 할 일·까먹은 일 리마인더) ──
+function updateNotifBtn() {
+  const b = document.getElementById('notifBtn'); if (!b) return;
+  if (!('Notification' in window)) { b.style.display = 'none'; return; }
+  if (Notification.permission === 'granted') { b.textContent = '🔔 알림 켜짐'; b.style.opacity = '0.6'; }
+  else if (Notification.permission === 'denied') { b.textContent = '🔕 알림 차단됨'; b.style.opacity = '0.6'; }
+  else { b.textContent = '🔔 알림 켜기'; b.style.opacity = '1'; }
+}
+function enableNotifications() {
+  if (!('Notification' in window)) { toast('이 브라우저는 알림을 지원하지 않아요'); return; }
+  if (Notification.permission === 'granted') { toast('이미 알림이 켜져 있어요'); buildReminders(true); return; }
+  Notification.requestPermission().then(p => {
+    updateNotifBtn();
+    if (p === 'granted') { toast('알림을 켰어요 🔔'); try { new Notification('다훈 플래너', { body: '알림이 켜졌어요. 앱을 열면 오늘 할 일·예산을 알려드릴게요.' }); } catch(e) {} }
+    else toast('알림 권한이 필요해요 (브라우저 설정에서 허용)');
+  });
+}
+// 알림 문구 만들기 (오늘 예산 초과 / 오늘 남은 할 일 / 까먹은 일)
+function buildReminders(force) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  const pad = x => String(x).padStart(2,'0');
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch(e) {}
+  const todayStr = pad(m+1) + '/' + pad(now.getDate());
+  const todayExp = led.filter(r => r.type === 'expense' && r.date === todayStr).reduce((s,r)=>s+(r.amt||0),0);
+  let daily = parseInt(dashVal('daily_budget') || 0) || 0;
+  const t = readDayTasks(dateToKey(now));
+  const todayUndone = [t.am && !t.amCheck ? '오전' : null, t.pm && !t.pmCheck ? '오후' : null].filter(Boolean);
+  let forgot = 0;
+  for (let i = 1; i <= 14; i++) { const d = new Date(now); d.setDate(now.getDate()-i); const tt = readDayTasks(dateToKey(d)); if (tt.am && !tt.amCheck) forgot++; if (tt.pm && !tt.pmCheck) forgot++; }
+
+  const msgs = [];
+  if (daily && todayExp > daily) msgs.push('오늘 예산 ' + (todayExp - daily).toLocaleString() + '원 초과했어요');
+  if (todayUndone.length) msgs.push('오늘 ' + todayUndone.join('·') + ' 할 일이 남았어요');
+  if (forgot) msgs.push('까먹은 일 ' + forgot + '건이 있어요');
+  if (!msgs.length) { if (force) toast('오늘은 알릴 내용이 없어요 👍'); return; }
+
+  // 하루 한 번만 자동 알림 (force면 무시)
+  const todayKey = dateToKey(now);
+  if (!force && localStorage.getItem('dahoon_notif_last') === todayKey) return;
+  localStorage.setItem('dahoon_notif_last', todayKey);
+
+  const body = msgs.join('\n');
+  if (('Notification' in window) && Notification.permission === 'granted') {
+    try { new Notification('📋 오늘의 알림', { body, tag: 'dahoon-daily' }); return; } catch(e) {}
+  }
+  toast(msgs[0]);   // 권한 없으면 앱 안 토스트로
+}
 
 // ══════════════════════════════════════
 // ⚙ 설정 / 꾸미기 (테마·색·크기·밀도·뷰 구성·데이터·보안·AI)
