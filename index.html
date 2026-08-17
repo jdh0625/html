@@ -4785,9 +4785,59 @@ function processVoice(text) {
     jarvisRespond('오늘 ' + won(todayExp) + ' 썼어요.' + (daily ? ' 하루 예산 ' + won(daily) + ' 중 ' + won(Math.max(0, daily-todayExp)) + ' 남았어요.' : ''));
     return;
   }
-  // ── 못 알아들음 → AI 키 있으면 자유 대화, 없으면 도움말 ──
+  // ── 인사 / 브리핑 ──
+  if (/(안녕|하이|헬로|반가|뭐해|도와|브리핑|오늘 어때|시작)/.test(text)) { jarvisRespond(jarvisGreeting()); return; }
+  // ── 분석 / 요약 / 조언 / 절약 (무료 로컬 인사이트) ──
+  if (/(분석|요약|정리해|조언|팁|절약|아껴|어떻게|줄일|많이 쓴|제일 많이|가장 많이)/.test(text)) { jarvisRespond(jarvisInsight()); return; }
+
+  // ── 못 알아들음 → AI 키 있으면 자유 대화, 없으면 로컬 인사이트 ──
   if (localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
-  jarvisRespond('오늘 지출은 ' + won(todayExp) + '이에요. "카페 오천원"처럼 말하면 기록하고, "오늘 할 일"·"총 자산"을 물으면 알려드려요. (설정 > AI 에 키를 넣으면 자유 대화도 돼요)');
+  jarvisRespond(jarvisInsight() + '  ("카페 오천원"처럼 말하면 기록도 돼요.)');
+}
+
+// 무료 로컬 인사이트 — 데이터로 계산한 요약/조언 (API 불필요)
+function jarvisInsight() {
+  const won = n => (n||0).toLocaleString()+'원';
+  const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
+  let led=[]; try{led=JSON.parse(dashVal('ledger-'+y+'-'+m)||'[]');}catch(e){}
+  const exp=led.filter(r=>r.type==='expense');
+  const monthExp=exp.reduce((s,r)=>s+(r.amt||0),0);
+  const byCat={}; exp.forEach(r=>{ const c=r.cat||'기타'; byCat[c]=(byCat[c]||0)+(r.amt||0); });
+  const top=Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+  let goals={};try{goals=JSON.parse(dashVal('budget_goals')||'{}');}catch(e){}
+  const mb=parseInt(dashVal('budget-'+y+'-'+m)||goals.monthly||0)||0;
+  let fixed=[];try{fixed=JSON.parse(dashVal('fixed_expenses')||'[]');}catch(e){}
+  const ft=fixed.reduce((s,f)=>s+(f.amt||0),0);
+  const day=now.getDate(), lastDay=new Date(y,m+1,0).getDate();
+  const parts=[];
+  parts.push('이번 달 ' + won(monthExp) + ' 썼어요.');
+  if (top) parts.push('가장 많이 쓴 건 ' + top[0] + ' ' + won(top[1]) + '.');
+  if (mb) {
+    const projected = day>0 ? Math.round(monthExp/day*lastDay) : monthExp;
+    const varBudget = mb - ft;
+    if (projected > varBudget) parts.push('이 속도면 월말에 예산보다 ' + won(projected - varBudget) + ' 더 쓸 것 같아요. 조금 아껴보세요.');
+    else parts.push('이 속도면 예산 안에서 ' + won(Math.max(0, varBudget - projected)) + ' 남길 수 있어요. 잘하고 있어요!');
+  } else {
+    parts.push('월 예산을 정해두면 초과 예상까지 알려드릴게요.');
+  }
+  return parts.join(' ');
+}
+function jarvisGreeting() {
+  const won = n => (n||0).toLocaleString()+'원';
+  const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
+  const h = now.getHours();
+  const hi = h<5?'늦은 밤이에요':h<11?'좋은 아침이에요':h<17?'좋은 오후예요':h<21?'좋은 저녁이에요':'오늘 하루 고생하셨어요';
+  let led=[]; try{led=JSON.parse(dashVal('ledger-'+y+'-'+m)||'[]');}catch(e){}
+  const todayStr=pad(m+1)+'/'+pad(now.getDate());
+  const todayExp=led.filter(r=>r.type==='expense'&&r.date===todayStr).reduce((s,r)=>s+(r.amt||0),0);
+  const t=readDayTasks(dateToKey(now));
+  const undone=[t.am&&t.amCheck===false?1:0,t.pm&&t.pmCheck===false?1:0].filter(Boolean).length;
+  let forgot=0; for(let i=1;i<=14;i++){ const d=new Date(now); d.setDate(now.getDate()-i); const tt=readDayTasks(dateToKey(d)); if(tt.am&&!tt.amCheck)forgot++; if(tt.pm&&!tt.pmCheck)forgot++; }
+  const bits=['다훈님, '+hi+'.', '오늘 '+won(todayExp)+' 썼어요.'];
+  if (undone) bits.push('오늘 할 일이 '+undone+'개 남았어요.');
+  if (forgot) bits.push('까먹은 일도 '+forgot+'건 있어요.');
+  bits.push('무엇을 도와드릴까요?');
+  return bits.join(' ');
 }
 
 // ══════════════════════════════════════
