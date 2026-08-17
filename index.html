@@ -4833,7 +4833,7 @@ function sendJarvisText() {
   jSet('jarvisHeroReply', '…');
   try { processVoice(text); } catch(e) { jarvisRespond('처리 중 문제가 생겼어요.'); }
 }
-function jarvisChip(text) { jSet('jarvisHeroReply', '…'); try { processVoice(text); } catch(e) {} }
+function jarvisChip(text) { jSet('jarvisHeroReply', '…'); try { pushHistory('user', text); jarvisRespond(localAnswer(text)); } catch(e) {} }   // 칩 = 로컬 즉답 (API 소모 없음)
 
 // ── AI 자유 대화 (설정 > AI 키가 있을 때) ──
 function buildJarvisContext() {
@@ -4965,7 +4965,14 @@ async function jarvisAskAI(text) {
       jarvisRespond(jarvisInsight());
     }
   } catch(e) {
-    jarvisRespond('지금은 AI 답변을 못 받았어요. (설정 > AI 에서 키를 확인해 주세요) — ' + jarvisInsight());
+    const msg = String((e && e.message) || e || '');
+    if (/quota|RESOURCE_EXHAUSTED|429|rate/i.test(msg)) {
+      jarvisRespond('무료 사용량 한도에 잠깐 걸렸어요. 1분 뒤 다시 말해 주세요. 🙏');
+    } else if (/API key|expired|invalid|PERMISSION/i.test(msg)) {
+      jarvisRespond('AI 키에 문제가 있어요. 설정 > AI에서 Gemini 키를 다시 넣어 주세요. (' + msg.slice(0, 80) + ')');
+    } else {
+      jarvisRespond('지금은 AI 답변을 못 받았어요' + (msg ? ' (' + msg.slice(0, 80) + ')' : '') + ' — ' + localAnswer(text));
+    }
   } finally { if (av) av.classList.remove('thinking'); }
 }
 
@@ -5010,13 +5017,13 @@ function processVoice(text) {
   const monthExp = led.filter(r => r.type==='expense').reduce((s,r)=>s+(r.amt||0),0);
 
   const amt = parseAmount(text);
-  const isQuestion = /(얼마|알려|뭐|보여|어때|남았|있어|줘|몇|말해|어떻게)/.test(text);
+  const isQuestion = /(얼마|알려|뭐|보여|어때|남았|있어|몇|말해)/.test(text);
   const hasSpendVerb = /(썼|샀|결제|냈|먹었|탔|기록|적어|썻)/.test(text);
   const cat = detectCategory(text);
   const hasCat = cat !== '💳 기타';
 
-  // ── 지출 기록 ──
-  if (amt && !isQuestion && (hasSpendVerb || hasCat)) {
+  // ── 지출 기록 (실제 데이터 저장이라 로컬에서 즉시·정확하게 처리) ──
+  if (amt && (hasSpendVerb || (hasCat && !isQuestion))) {
     const desc = cat.replace(/^\S+\s/, '');
     led.unshift({ id: Date.now(), date: todayStr, iso: dateToKey(now), type: 'expense', desc, cat, amt });
     dbSet('ledger-'+y+'-'+m, JSON.stringify(led));
@@ -5025,42 +5032,48 @@ function processVoice(text) {
     jarvisRespond(desc + ' ' + won(amt) + ' 기록했어요.');
     return;
   }
-  // ── 조회 ──
+
+  // ── 그 외 전부: Gemini가 직접 답변 (사용자 데이터 + 대화 기억 포함) ──
+  if (localStorage.getItem('dahoon_gemini_key') || localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
+
+  // ── AI 키가 없을 때만: 로컬 규칙 응답 (오프라인 대비) ──
+  jarvisRespond(localAnswer(text));
+}
+
+// 로컬 데이터 즉답 — 칩 버튼용 + AI 키 없을 때 대비 (API 소모 없음)
+function localAnswer(text) {
+  const won = n => (n || 0).toLocaleString() + '원';
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
+  let led = []; try { led = JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) {}
+  const todayStr = pad(m+1) + '/' + pad(now.getDate());
+  const todayExp = led.filter(r => r.type==='expense' && r.date===todayStr).reduce((s,r)=>s+(r.amt||0),0);
+  const monthExp = led.filter(r => r.type==='expense').reduce((s,r)=>s+(r.amt||0),0);
   if (/(할일|할 일|일정)/.test(text)) {
     const t = readDayTasks(dateToKey(now));
     const arr = []; if (t.am) arr.push('오전, ' + t.am); if (t.pm) arr.push('오후, ' + t.pm);
-    jarvisRespond(arr.length ? '오늘 할 일은 ' + arr.join('. ') + ' 이에요.' : '오늘 등록된 할 일이 없어요.');
-    return;
+    return arr.length ? '오늘 할 일은 ' + arr.join('. ') + ' 이에요.' : '오늘 등록된 할 일이 없어요.';
   }
   if (/(자산|포트|주식|코인)/.test(text)) {
     const pf = getPortfolio(); const total = pf.reduce((s,h)=>s+(h.amt||0),0);
-    if (!total) { jarvisRespond('등록된 자산이 없어요.'); return; }
+    if (!total) return '등록된 자산이 없어요.';
     const top = pf.slice().sort((a,b)=>b.amt-a.amt)[0];
-    jarvisRespond('총 자산은 ' + won(total) + '이고, 가장 큰 비중은 ' + top.name + ', ' + Math.round(top.amt/total*100) + '퍼센트예요.');
-    return;
+    return '총 자산은 ' + won(total) + '이고, 가장 큰 비중은 ' + top.name + ', ' + Math.round(top.amt/total*100) + '퍼센트예요.';
   }
   if (/(예산|여유|남은)/.test(text)) {
     let goals = {}; try { goals = JSON.parse(dashVal('budget_goals') || '{}'); } catch(e) {}
     const mb = parseInt(dashVal('budget-'+y+'-'+m) || goals.monthly || 0) || 0;
     let fixed = []; try { fixed = JSON.parse(dashVal('fixed_expenses') || '[]'); } catch(e) {}
     const ft = fixed.reduce((s,f)=>s+(f.amt||0),0);
-    if (!mb) { jarvisRespond('이번 달 예산이 아직 없어요. 이번 달 지출은 ' + won(monthExp) + '이에요.'); return; }
-    jarvisRespond('이번 달 여유 예산은 ' + won(mb - ft - monthExp) + '이에요. 지출은 ' + won(monthExp) + '.');
-    return;
+    if (!mb) return '이번 달 예산이 아직 없어요. 이번 달 지출은 ' + won(monthExp) + '이에요.';
+    return '이번 달 여유 예산은 ' + won(mb - ft - monthExp) + '이에요. 지출은 ' + won(monthExp) + '.';
   }
   if (/(지출|썼|얼마)/.test(text)) {
     const daily = parseInt(dashVal('daily_budget') || 0) || 0;
-    jarvisRespond('오늘 ' + won(todayExp) + ' 썼어요.' + (daily ? ' 하루 예산 ' + won(daily) + ' 중 ' + won(Math.max(0, daily-todayExp)) + ' 남았어요.' : ''));
-    return;
+    return '오늘 ' + won(todayExp) + ' 썼어요.' + (daily ? ' 하루 예산 ' + won(daily) + ' 중 ' + won(Math.max(0, daily-todayExp)) + ' 남았어요.' : '');
   }
-  // ── 인사 / 브리핑 ──
-  if (/(안녕|하이|헬로|반가|뭐해|도와|브리핑|오늘 어때|시작)/.test(text)) { jarvisRespond(jarvisGreeting()); return; }
-  // ── 분석 / 요약 / 조언 / 절약 (무료 로컬 인사이트) ──
-  if (/(분석|요약|정리해|조언|팁|절약|아껴|어떻게|줄일|많이 쓴|제일 많이|가장 많이)/.test(text)) { jarvisRespond(jarvisInsight()); return; }
-
-  // ── 못 알아들음 → AI 키(Gemini/Anthropic) 있으면 자유 대화, 없으면 로컬 인사이트 ──
-  if (localStorage.getItem('dahoon_gemini_key') || localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
-  jarvisRespond(jarvisInsight() + '  ("카페 오천원"처럼 말하면 기록도 돼요.)');
+  if (/(안녕|하이|헬로|반가|뭐해|도와|브리핑|시작)/.test(text)) return jarvisGreeting();
+  if (/(분석|요약|정리해|조언|팁|절약|아껴|줄일|많이 쓴)/.test(text)) return jarvisInsight();
+  return jarvisInsight() + '  (설정 > AI에 Gemini 키를 넣으면 무엇이든 자유롭게 대화할 수 있어요.)';
 }
 
 // 무료 로컬 인사이트 — 데이터로 계산한 요약/조언 (API 불필요)
