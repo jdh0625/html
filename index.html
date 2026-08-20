@@ -552,6 +552,8 @@ body.theme-light .day, body.theme-light .box, body.theme-light .dash-card,
 body.theme-light .settings-panel, body.theme-light .modal-content,
 body.theme-light .jarvis-panel { background: #ffffff; border: 1px solid #ededec; box-shadow: none; }
 body.theme-light textarea, body.theme-light input, body.theme-light select { color: #37352f; background: #f7f6f3; border-color: #e9e9e7; }
+/* 인라인 네이비(#0c1829) 배경(위시/투자/회의록 모달·셀렉트)을 라이트에서 밝게 → 다크-온-다크 판독불가 해소 */
+body.theme-light [style*="background:#0c1829"], body.theme-light [style*="background: #0c1829"] { background: #ffffff !important; border-color: #ededec !important; }
 body.theme-light textarea::placeholder, body.theme-light input::placeholder { color: #a5a29b; }
 body.theme-light .day b { color: #37352f; }
 body.theme-light .time { color: #787774; }
@@ -675,6 +677,7 @@ body.theme-light .jarvis-new { background: #f0efed; }
 }
 .jarvis-hero-chips button:hover { background: rgba(59,130,246,0.2); }
 .jarvis-image { display: block; margin-top: 12px; line-height: 0; }
+.jarvis-image[hidden] { display: none; }   /* hidden 속성이 display:block에 눌리는 것 방지 */
 .jarvis-image img { width: 100%; max-width: 320px; border-radius: 12px; display: block; border: 1px solid rgba(255,255,255,0.1); }
 body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 
@@ -4711,7 +4714,7 @@ function pushHistory(role, text) {
 function clearJarvisChat() {
   jarvisHistory = []; persistJarvisHistory();
   jSet('jarvisHeroReply', '새 대화를 시작해요. 무엇이든 물어보세요.');
-  const a = document.getElementById('jarvisImage'); if (a) a.hidden = true;
+  hideJarvisImage();
   toast('대화를 초기화했어요');
 }
 
@@ -4725,11 +4728,15 @@ function toggleImageMode() {
   if (inp) inp.placeholder = jarvisImageMode ? '🎨 그릴 그림을 설명하세요 (예: 노을 진 바다)' : '예: 카페 오천원 / 오늘 지출 얼마야';
   jSet('jarvisHeroReply', jarvisImageMode ? '🎨 이미지 모드예요. 그릴 것을 말하거나 입력하세요.' : '이미지 모드를 껐어요. 무엇이든 물어보세요.');
 }
-function hideJarvisImage() { const a = document.getElementById('jarvisImage'); if (a) a.hidden = true; }
+function hideJarvisImage() {
+  const a = document.getElementById('jarvisImage'), img = document.getElementById('jarvisImageImg');
+  if (a) a.hidden = true;
+  if (img) { img.onload = img.onerror = null; img.removeAttribute('src'); }   // 잔존 핸들러·이전 이미지 제거
+}
 function showJarvisImage(src, prompt) {
   const a = document.getElementById('jarvisImage'), img = document.getElementById('jarvisImageImg');
   const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.remove('thinking');
-  if (a && img) { a.href = src; img.src = src; a.hidden = false; }
+  if (a && img) { img.onload = img.onerror = null; a.href = src; img.src = src; a.hidden = false; }   // 폴백 핸들러 잔존 제거
   jarvisRespond('"' + prompt + '" 그렸어요! 🎨 (탭하면 크게 보기)');
 }
 // Gemini 네이티브 이미지 생성 (사용자 키, data URI라 외부호스트 차단 영향 없음)
@@ -4977,25 +4984,35 @@ async function jarvisAskAI(text) {
 }
 
 // 금액 파서 (아라비아 + 한글 숫자 지원: "오천원"=5000, "만이천원"=12000, "3만원"=30000, "십만원"=100000)
+// ⚠ 핵심: 한글 숫자('오늘'의 '오' 등)가 문장 앞 단어에서 새어 실제 금액과 이어붙지 않도록,
+//   '원' 바로 앞의 연속된 금액식만 떼어내 파싱한다. 단위(천/백/십/만)나 '원'이 없으면 인정하지 않음.
 function parseAmount(text) {
-  let t = text.replace(/[,\s]/g, '');
-  const wi = t.indexOf('원'); if (wi >= 0) t = t.slice(0, wi);   // '원' 앞부분만
+  const t = text.replace(/[,\s]/g, '');
   if (/^\d+$/.test(t)) return parseInt(t) || null;               // 순수 숫자
   const kmap = {'영':0,'공':0,'일':1,'이':2,'삼':3,'사':4,'오':5,'육':6,'칠':7,'팔':8,'구':9};
-  t = t.replace(/[영공일이삼사오육칠팔구]/g, c => String(kmap[c]));  // 한글 숫자 → 아라비아
+  const conv = t.replace(/[영공일이삼사오육칠팔구]/g, c => String(kmap[c]));  // 한글 숫자 → 아라비아
+  const isAmt = c => /[0-9천백십만]/.test(c);
+
+  // 1) '원' 바로 앞의 연속 금액식만 추출 (단어 경계에서 끊음)
+  let cand = '';
+  const wi = conv.indexOf('원');
+  if (wi > 0) { let s = wi - 1; while (s >= 0 && isAmt(conv[s])) s--; cand = conv.slice(s + 1, wi); }
+
+  // 2) '원'이 없으면: 단위를 포함한 연속식만 인정 (그마저 없으면 원문의 2자리+ 아라비아 숫자만)
+  if (!cand) {
+    const runs = conv.match(/[0-9천백십만]+/g) || [];
+    cand = runs.filter(r => /[천백십만]/.test(r)).sort((a, b) => b.length - a.length)[0] || '';
+    if (!cand) { const d = t.match(/\d{2,}/); return d ? (parseInt(d[0]) || null) : null; }
+  }
+
+  // 3) 순차 파싱 (천·백·십·만 + 나머지 숫자)
   const small = {'천':1000,'백':100,'십':10};
   let total = 0, group = 0, numStr = '';
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i];
+  for (let i = 0; i < cand.length; i++) {
+    const c = cand[i];
     if (/[0-9]/.test(c)) { numStr += c; continue; }
-    if (small[c] !== undefined) {
-      const n = numStr !== '' ? parseInt(numStr) : 1; numStr = '';
-      group += n * small[c];
-    } else if (c === '만') {
-      const n = numStr !== '' ? parseInt(numStr) : (group > 0 ? 0 : 1); numStr = '';
-      total += (group + n) * 10000; group = 0;
-    }
-    // 그 외 문자는 무시
+    if (small[c] !== undefined) { const n = numStr !== '' ? parseInt(numStr) : 1; numStr = ''; group += n * small[c]; }
+    else if (c === '만') { const n = numStr !== '' ? parseInt(numStr) : (group > 0 ? 0 : 1); numStr = ''; total += (group + n) * 10000; group = 0; }
   }
   const tail = numStr !== '' ? parseInt(numStr) : 0;
   const val = total + group + tail;
@@ -5017,13 +5034,14 @@ function processVoice(text) {
   const monthExp = led.filter(r => r.type==='expense').reduce((s,r)=>s+(r.amt||0),0);
 
   const amt = parseAmount(text);
-  const isQuestion = /(얼마|알려|뭐|보여|어때|남았|있어|몇|말해)/.test(text);
-  const hasSpendVerb = /(썼|샀|결제|냈|먹었|탔|기록|적어|썻)/.test(text);
+  const isQuestion = /(얼마|알려|뭐|보여|어때|남았|있어|몇|말해|\?|까|냐|나요)/.test(text);
+  const hasSpendVerb = /(썼|샀|결제|냈|먹었|기록|썻)/.test(text);   // 동음이의 '탔/적어' 제거
   const cat = detectCategory(text);
   const hasCat = cat !== '💳 기타';
 
   // ── 지출 기록 (실제 데이터 저장이라 로컬에서 즉시·정확하게 처리) ──
-  if (amt && (hasSpendVerb || (hasCat && !isQuestion))) {
+  // 질문(‘?’,‘얼마’,‘까’…)이면 기록하지 않고 아래 AI/로컬 응답으로 넘김
+  if (amt && !isQuestion && (hasSpendVerb || hasCat)) {
     const desc = cat.replace(/^\S+\s/, '');
     led.unshift({ id: Date.now(), date: todayStr, iso: dateToKey(now), type: 'expense', desc, cat, amt });
     dbSet('ledger-'+y+'-'+m, JSON.stringify(led));
