@@ -11,6 +11,11 @@
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "categories": ["productivity", "lifestyle"],
+  "share_target": {
+    "action": "./index.html",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "shortcuts": [
     { "name": "다브스에게 말하기", "short_name": "말하기", "url": "./index.html?voice=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
     { "name": "홈 (음성 없이)", "short_name": "홈", "url": "./index.html", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }

@@ -1364,6 +1364,45 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 </div>
 
 
+    <!-- 결제 문자 공유 → 지출 자동 기록 확인 모달 -->
+    <div id="shareModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:320;align-items:center;justify-content:center;" onclick="closeShareModal()">
+      <div onclick="event.stopPropagation()" style="background:#0c1829;border:1px solid rgba(59,130,246,0.35);border-radius:16px;padding:24px;width:380px;max-width:92vw;">
+        <h3 style="color:#60a5fa;margin-bottom:6px;font-size:15px;">💳 결제 내용 기록</h3>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:16px;">공유한 결제 문자에서 자동으로 읽었어요. 확인하고 저장하세요.</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">내용 (가맹점)</div>
+            <input id="share_desc" type="text" placeholder="예: 스타벅스" style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;box-sizing:border-box;" />
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">금액 (원)</div>
+              <input id="share_amt" type="number" placeholder="0" style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:white;font-size:13px;outline:none;text-align:right;box-sizing:border-box;" />
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">분류</div>
+              <select id="share_type" style="width:100%;padding:9px 12px;background:#0c1829;border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;">
+                <option value="expense">💸 지출</option>
+                <option value="income">↩ 환불/입금</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">카테고리</div>
+            <select id="share_cat" style="width:100%;padding:9px 12px;background:#0c1829;border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;">
+              <option>☕ 카페</option><option>🍚 식비</option><option>🚌 교통</option><option>🛒 쇼핑</option>
+              <option>🏠 생활</option><option>💊 건강</option><option>🎬 여가</option><option>💳 기타</option>
+            </select>
+          </div>
+          <div id="share_raw" style="font-size:10px;color:var(--muted);background:rgba(255,255,255,0.04);border-radius:6px;padding:8px;max-height:60px;overflow:auto;white-space:pre-wrap;line-height:1.5;"></div>
+          <div style="display:flex;gap:10px;margin-top:4px;">
+            <button onclick="closeShareModal()" style="flex:1;padding:11px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">취소</button>
+            <button onclick="saveSharedExpense()" style="flex:2;padding:11px;border:none;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:600;cursor:pointer;font-size:13px;">저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 위시리스트 추가/편집 모달 -->
     <div id="wishModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:300;align-items:center;justify-content:center;" onclick="closeWishModal()">
       <div onclick="event.stopPropagation()" style="background:#0c1829;border:1px solid rgba(236,72,153,0.3);border-radius:16px;padding:26px;width:400px;max-width:92vw;max-height:90vh;overflow-y:auto;">
@@ -1796,6 +1835,8 @@ const OWNER_EMAIL = 'jftgj00625@gmail.com';   // 데이터 접근을 허용할 �
 const VAPID_KEY = 'BJqHjLJPlFinR_tPxx68caJOQ3qTh9V-7gYwJwOd48bDOipJZIpA0mGC_XLfBmdOsVlHWo_XRKjcJDecrLngpjQ';   // 웹 푸시 공개키 (서버 푸시용)
 // ?voice=1 또는 #voice 로 열리면 다브스 듣기 모드 자동 시작 (웨이크워드 루틴 연동)
 let davosAutoListen = (location.search.indexOf('voice') !== -1) || (location.hash.indexOf('voice') !== -1);
+// 결제 문자 "공유"로 열렸으면(Web Share Target) 공유된 텍스트를 잡아 지출 자동 기록에 사용
+let pendingShare = (function(){ try { const p = new URLSearchParams(location.search); return [p.get('title'), p.get('text'), p.get('url')].filter(Boolean).join(' ').trim(); } catch(e){ return ''; } })();
 let currentUser = null;
 let authMode = 'login';   // 'login' | 'signup'
 let appDataLoaded = false;
@@ -1910,6 +1951,8 @@ function enterApp(user) {
   attachDataListener();   // 실시간 동기화는 인증 이후에만
   // 딥링크로 열렸으면(?voice=1 / #voice) 다브스 듣기 모드 자동 시작 (웨이크워드 연동용)
   if (davosAutoListen) { davosAutoListen = false; setTimeout(() => { try { startVoice(); } catch(e) {} }, 1000); }
+  // 결제 문자를 공유해서 열렸으면 → 파싱해 확인 모달 띄우기 (새로고침 재발동 방지 위해 URL 정리)
+  if (pendingShare) { const s = pendingShare; pendingShare = ''; try { history.replaceState(null, '', location.pathname); } catch(e) {} setTimeout(() => { try { handleSharedPayment(s); } catch(e) {} }, 900); }
   if (!appDataLoaded) {
     appDataLoaded = true;
     openDB().then(() => { renderMonth(); load().then(() => { loadJarvisHistory(); renderHome(); updateNotifBtn(); if (('Notification' in window) && Notification.permission === 'granted') registerFcmToken(); setTimeout(() => buildReminders(false), 1200); }); loadGoals(); loadAllDeadlines(); loadDailyBudget(); loadInvest(); loadWish(); loadMeetingLogs(); loadSettingsRemote(); });
@@ -5044,9 +5087,74 @@ function parseAmount(text) {
   return val > 0 ? val : null;
 }
 function detectCategory(text) {
-  const map = [['카페','☕ 카페'],['커피','☕ 카페'],['아메리카노','☕ 카페'],['라떼','☕ 카페'],['점심','🍚 식비'],['저녁','🍚 식비'],['아침','🍚 식비'],['식비','🍚 식비'],['밥','🍚 식비'],['배달','🍚 식비'],['택시','🚌 교통'],['버스','🚌 교통'],['지하철','🚌 교통'],['교통','🚌 교통'],['기차','🚌 교통'],['쇼핑','🛒 쇼핑'],['옷','🛒 쇼핑'],['마트','🏠 생활'],['생활','🏠 생활'],['약','💊 건강'],['병원','💊 건강'],['건강','💊 건강'],['영화','🎬 여가'],['여가','🎬 여가'],['게임','🎬 여가']];
+  const map = [['카페','☕ 카페'],['커피','☕ 카페'],['아메리카노','☕ 카페'],['라떼','☕ 카페'],['스타벅스','☕ 카페'],['투썸','☕ 카페'],['이디야','☕ 카페'],['메가커피','☕ 카페'],['컴포즈','☕ 카페'],['점심','🍚 식비'],['저녁','🍚 식비'],['아침','🍚 식비'],['식비','🍚 식비'],['밥','🍚 식비'],['배달','🍚 식비'],['배민','🍚 식비'],['쿠팡이츠','🍚 식비'],['맥도날드','🍚 식비'],['김밥','🍚 식비'],['택시','🚌 교통'],['버스','🚌 교통'],['지하철','🚌 교통'],['교통','🚌 교통'],['기차','🚌 교통'],['카카오T','🚌 교통'],['주유','🚌 교통'],['쇼핑','🛒 쇼핑'],['옷','🛒 쇼핑'],['쿠팡','🛒 쇼핑'],['무신사','🛒 쇼핑'],['올리브영','🛒 쇼핑'],['마트','🏠 생활'],['생활','🏠 생활'],['이마트','🏠 생활'],['편의점','🏠 생활'],['GS25','🏠 생활'],['CU','🏠 생활'],['세븐일레븐','🏠 생활'],['약','💊 건강'],['병원','💊 건강'],['건강','💊 건강'],['약국','💊 건강'],['영화','🎬 여가'],['여가','🎬 여가'],['게임','🎬 여가'],['넷플릭스','🎬 여가'],['CGV','🎬 여가']];
   for (const [k, v] of map) { if (text.includes(k)) return v; }
   return '💳 기타';
+}
+
+// ── 결제 문자 공유 → 지출 자동 기록 (Web Share Target) ──
+// 카드사 승인 문자에서 금액·가맹점을 최대한 뽑아내되, 저장 전 사용자 확인을 받는다(오파싱 방지).
+function parsePaymentSMS(raw) {
+  const text = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  const isCancel = /(취소|환불|승인취소)/.test(text);
+  // 금액 후보: 'NN,NNN원' 중 잔액/한도/포인트/누적/합계 앞수식은 제외 → 첫 번째를 승인액으로
+  const amts = []; const re = /([\d,]{2,})\s*원/g; let m;
+  while ((m = re.exec(text))) {
+    const ctx = text.slice(Math.max(0, m.index - 7), m.index);
+    if (/(잔액|한도|누적|포인트|적립|합계|누계|가용)/.test(ctx)) continue;
+    const n = parseInt(m[1].replace(/,/g, ''), 10);
+    if (n > 0) amts.push(n);
+  }
+  if (!amts.length) return null;
+  // 가맹점: 카드사·키워드·금액·날짜/시간 등 제거 후 남는 꼬리 부분
+  let merchant = text
+    .replace(/\[?\s*web발신\s*\]?/gi, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/[\d,]+\s*원/g, ' ')
+    .replace(/(신한|삼성|현대|국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK|기업|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
+    .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용)/g, ' ')
+    .replace(/\d{1,4}[.\-\/]\d{1,2}([.\-\/]\d{1,4})?/g, ' ')   // 날짜(06/20 또는 2026-06-20)
+    .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ')                    // 시간
+    .replace(/\S*님/g, ' ')                                     // 이름(홍길동님) 제거
+    .replace(/(오전|오후)/g, ' ')
+    .replace(/[()*·|\/\-]/g, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  const parts = merchant.split(' ').filter(w => w.length >= 1);
+  merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
+  if (!merchant) merchant = '카드결제';
+  return { amt: amts[0], merchant, isCancel };
+}
+function handleSharedPayment(raw) {
+  const p = parsePaymentSMS(raw);
+  const cat = p ? detectCategory(p.merchant + ' ' + raw) : '💳 기타';
+  openShareModal(p ? p.amt : '', p ? p.merchant : '', cat, (p && p.isCancel) ? 'income' : 'expense', raw);
+  if (!p) toast('금액을 자동으로 못 읽었어요. 직접 입력해 주세요.');
+}
+function openShareModal(amt, desc, cat, type, raw) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('share_amt', amt || ''); set('share_desc', desc || ''); set('share_cat', cat || '💳 기타'); set('share_type', type || 'expense');
+  const rawEl = document.getElementById('share_raw'); if (rawEl) rawEl.textContent = raw ? ('원문: ' + String(raw).slice(0, 140)) : '';
+  const mod = document.getElementById('shareModal'); if (mod) mod.style.display = 'flex';
+}
+function closeShareModal() { const mod = document.getElementById('shareModal'); if (mod) mod.style.display = 'none'; }
+function saveSharedExpense() {
+  const amt = parseInt(document.getElementById('share_amt').value, 10) || 0;
+  if (amt <= 0) { toast('금액을 확인해 주세요.'); return; }
+  const desc = (document.getElementById('share_desc').value || '카드결제').trim();
+  const cat = document.getElementById('share_cat').value || '💳 기타';
+  const type = document.getElementById('share_type').value || 'expense';
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
+  const todayStr = pad(m + 1) + '/' + pad(now.getDate());
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch(e) {}
+  if (!Array.isArray(led)) led = [];
+  led.unshift({ id: Date.now(), date: todayStr, iso: dateToKey(now), type, desc, cat, amt });
+  dbSet('ledger-' + y + '-' + m, JSON.stringify(led));
+  if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear() === y && ledgerCurrent.getMonth() === m) { ledgerData = led; if (typeof renderLedger === 'function') renderLedger(); }
+  if (typeof renderHome === 'function') renderHome();
+  closeShareModal();
+  toast((type === 'income' ? '↩ ' : '💳 ') + desc + ' ' + amt.toLocaleString() + '원 기록했어요');
 }
 function processVoice(text) {
   pushHistory('user', text);   // 대화 기억
