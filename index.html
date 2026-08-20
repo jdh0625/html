@@ -2201,6 +2201,8 @@ function attachDataListener() {
     // 홈 대시보드가 열려 있으면 원격 변경을 즉시 반영
     const homeEl = document.getElementById('homeView');
     if (homeEl && !homeEl.classList.contains('hidden') && typeof renderHome === 'function') renderHome();
+    // JSON blob 컬렉션(가계부·투자·회의록)도 원격 변경 반영 — 다기기 편집 유실 방지
+    try { refreshBlobCollections(data); } catch(e) {}
   }, err => {
     // 권한 오류 등으로 취소되면 다음 로그인 때 다시 붙일 수 있게 초기화
     dataListenerRef = null;
@@ -2208,6 +2210,42 @@ function attachDataListener() {
 }
 function detachDataListener() {
   if (dataListenerRef) { try { dataListenerRef.off(); } catch(e) {} dataListenerRef = null; }
+}
+// 원격 스냅샷에서 JSON blob 컬렉션을 메모리에 재반영 — 로컬 미저장분(pendingUpdates)은 보존해 덮어쓰지 않음
+function refreshBlobCollections(data) {
+  // 가계부(현재 보고 있는 달)
+  try {
+    const sk = sanitizeKey(getLedgerKey());
+    if (!(sk in pendingUpdates)) {
+      const arr = JSON.parse(data[sk] || '[]');
+      if (Array.isArray(arr) && typeof ledgerData !== 'undefined') {
+        ledgerData = arr;
+        const v = document.getElementById('ledgerView');
+        if (v && !v.classList.contains('hidden') && typeof renderLedger === 'function') renderLedger();
+      }
+    }
+  } catch(e) {}
+  // 투자
+  try {
+    if (!('invest_portfolio' in pendingUpdates)) {
+      const arr = JSON.parse(data['invest_portfolio'] || '[]');
+      if (Array.isArray(arr) && typeof investData !== 'undefined') {
+        investData = arr;
+        const v = document.getElementById('investView');
+        if (v && !v.classList.contains('hidden') && typeof renderInvest === 'function') renderInvest();
+      }
+    }
+  } catch(e) {}
+  // 회의록
+  try {
+    if (!('meeting_logs' in pendingUpdates)) {
+      const arr = JSON.parse(data['meeting_logs'] || '[]');
+      if (Array.isArray(arr) && typeof meetingLogs !== 'undefined') {
+        meetingLogs = arr;
+        if (typeof renderMeetingLogs === 'function') renderMeetingLogs();
+      }
+    }
+  } catch(e) {}
 }
 
 // ── 보안 상태 점검: 인증 없이 DB가 읽히는지(=규칙 미적용) 확인 ──
@@ -2408,15 +2446,10 @@ function getBudgetKey() {
 }
 
 function saveLedger() {
-  const key = getLedgerKey(), bkey = getBudgetKey();
-  const val = JSON.stringify(ledgerData);
+  // 통합 저장경로(dbSet): localStorage + remoteSnapshot + 버퍼 일관 → 이중쓰기 경합/유실 방지
   const budget = document.getElementById('budgetInput')?.value || '0';
-  try { localStorage.setItem('dahoon_' + key, val); } catch(e) {}
-  try { localStorage.setItem('dahoon_' + bkey, budget); } catch(e) {}
-  if (fbReady && fbDB) {
-    fbDB.ref('dahoon/data').update({ [sanitizeKey(key)]: val, [sanitizeKey(bkey)]: budget })
-      .then(() => setFbStatus('✅ 저장됨', '#4ade80')).catch(() => {});
-  }
+  dbSet(getLedgerKey(), JSON.stringify(ledgerData));
+  dbSet(getBudgetKey(), budget);
 }
 
 async function loadLedger() {
@@ -3307,11 +3340,7 @@ async function loadInvest() {
   try { investData = raw ? JSON.parse(raw) : []; } catch(e) { investData = []; }
 }
 
-function saveInvest() {
-  const val = JSON.stringify(investData);
-  try { localStorage.setItem('dahoon_invest_portfolio', val); } catch(e) {}
-  if (fbReady && fbDB) fbDB.ref('dahoon/data').update({ 'invest_portfolio': val }).catch(()=>{});
-}
+function saveInvest() { dbSet('invest_portfolio', JSON.stringify(investData)); }   // 통합 저장경로
 
 async function renderInvest() {
   if (!investData.length) await loadInvest();
@@ -4056,11 +4085,7 @@ function saveRecResult() {
 // ── 회의록 목록 저장/불러오기 ──
 let meetingLogs = [];
 
-function saveMeetingLogs() {
-  const val = JSON.stringify(meetingLogs);
-  try { localStorage.setItem('dahoon_meeting_logs', val); } catch(e) {}
-  if (fbReady && fbDB) fbDB.ref('dahoon/data').update({ 'meeting_logs': val }).catch(()=>{});
-}
+function saveMeetingLogs() { dbSet('meeting_logs', JSON.stringify(meetingLogs)); }   // 통합 저장경로
 
 async function loadMeetingLogs() {
   let raw = null;
