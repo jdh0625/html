@@ -903,6 +903,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <button onclick="jarvisChip('오늘 할 일')">✅ 오늘 할 일</button>
           <button onclick="jarvisChip('총 자산 얼마야')">📊 자산</button>
           <button onclick="jarvisChip('이번 달 여유 얼마야')">💰 여유 예산</button>
+          <button onclick="focusSearch()">🔍 검색</button>
           <button onclick="openWorkDocs()">📄 문서함</button>
         </div>
         <div class="jarvis-ai-links">
@@ -5050,6 +5051,38 @@ async function callGeminiChat(text) {
   catch (e) { return await call(false); }
 }
 
+// ── 🔍 국내 정보 검색 (맛집·뉴스·날씨·가격) — Gemini + 구글 검색 ──
+function isSearchRequest(text) {
+  // 내 개인 데이터 질문은 검색이 아니라 로컬/컨텍스트로
+  if (/(지출|예산|자산|할\s?일|여유|가계부|저축|포트폴리오|얼마\s*썼|얼마\s*남|내\s*돈)/.test(text)) return false;
+  return /(맛집|먹을\s?만|가볼\s?만|핫플|근처|주변|뉴스|속보|날씨|기온|미세먼지|주가|환율|시세|최저가|영업\s?시간|영업\s?해|평점|후기|리뷰|실시간|검색|찾아\s?줘|추천)/.test(text);
+}
+async function callGeminiSearch(text) {
+  const key = localStorage.getItem('dahoon_gemini_key');
+  if (!key) throw new Error('NO_GEMINI');
+  const sys = "너는 '다브스', '다훈'의 검색 비서야. 구글 검색 결과를 활용해 한국어로 정확하고 최신인 정보를 줘. "
+    + "맛집·장소를 물으면 실제 상호명 3~5곳을 한 줄 이유와 함께 목록으로, 뉴스는 핵심 3가지 요약, 날씨·가격·환율은 구체적인 수치로. 확실치 않으면 모른다고 말해. 간결하게.";
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+  async function call(useSearch) {
+    const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: { maxOutputTokens: 800, temperature: 0.4 } };
+    if (useSearch) body.tools = [{ google_search: {} }];
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
+    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const t = parts ? parts.map(p => (p && p.text) || '').join(' ').trim() : '';
+    if (t) return t;
+    throw new Error('NO_REPLY');
+  }
+  try { return await call(true); } catch (e) { return await call(false); }
+}
+function focusSearch() {
+  if (jarvisImageMode) toggleImageMode();   // 이미지 모드였으면 끔
+  const inp = document.getElementById('jarvisInput');
+  if (inp) { inp.placeholder = '🔍 검색: 강남 맛집 / 오늘 뉴스 / 내일 날씨 / 환율'; inp.focus(); }
+  jSet('jarvisHeroReply', '무엇을 검색할까요? 맛집·뉴스·날씨·가격 등을 물어보세요. 🔍');
+}
+
 // ── 💼 업무 비서: 이메일·기획서·보고서·코드 등 문서 작성 ──
 function isWorkDocRequest(text) {
   const docType = /(이메일|메일|기획서|기획안|사업계획|보고서|제안서|계획서|공지문|안내문|자기소개서|자소서|이력서|회의록|보도자료|계약서|초안|합의서|견적서|품의서|편지)/.test(text);
@@ -5154,6 +5187,8 @@ async function jarvisAskAI(text) {
         const r = await callGeminiAI(text);                 // 외형: {say, settings}
         const applied = applyJarvisSettings(r.settings);     // 실제 적용
         jarvisRespond(r.say || (applied ? '적용했어요! ✨' : '네!'));
+      } else if (isSearchRequest(text)) {
+        jarvisRespond(await callGeminiSearch(text));          // 🔍 국내 정보 검색(맛집·뉴스·날씨) — 구글검색 활용
       } else {
         jarvisRespond(await callGeminiChat(text));            // 일반 대화 + 구글 검색
       }
