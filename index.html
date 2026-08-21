@@ -905,6 +905,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <button onclick="jarvisChip('이번 달 여유 얼마야')">💰 여유 예산</button>
           <button onclick="focusWork()">💼 업무비서</button>
           <button onclick="focusSearch()">🔍 검색</button>
+          <button onclick="openKnowledge()">🧠 지식창고</button>
           <button onclick="openWorkDocs()">📄 문서함</button>
         </div>
         <div class="jarvis-ai-links">
@@ -1429,6 +1430,20 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">다브스가 작성한 이메일·기획서·보고서·코드 보관함</div>
         <div id="docsList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
         <button onclick="closeDocsModal()" style="margin-top:14px;padding:10px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
+      </div>
+    </div>
+
+    <!-- 🧠 지식창고 (RAG): 내 자료 추가/관리 -->
+    <div id="knowledgeModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:330;align-items:center;justify-content:center;" onclick="closeKnowledge()">
+      <div onclick="event.stopPropagation()" style="background:#0c1829;border:1px solid rgba(16,185,129,0.35);border-radius:16px;padding:22px;width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;">
+        <h3 style="color:#34d399;margin-bottom:4px;font-size:15px;">🧠 지식창고</h3>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">여기 넣은 자료를 다브스가 <b>근거로</b> 답해요. 회사 규정·자주 쓰는 정보·메모·참고자료를 붙여넣으세요.</div>
+        <input id="k_title" type="text" placeholder="제목 (예: 우리 회사 환불 규정)" style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(16,185,129,0.25);border-radius:8px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;box-sizing:border-box;margin-bottom:8px;" />
+        <textarea id="k_text" rows="4" placeholder="내용을 붙여넣으세요… (길어도 자동으로 나눠서 학습해요)" style="width:100%;padding:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(16,185,129,0.2);border-radius:8px;color:var(--text);font-size:13px;line-height:1.6;font-family:'Noto Sans KR',sans-serif;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+        <button id="k_save" onclick="saveKnowledge()" style="margin-top:8px;padding:10px;border:none;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:600;cursor:pointer;font-size:13px;">➕ 추가</button>
+        <div style="font-size:11px;color:var(--muted);margin:14px 0 6px;">📚 넣은 자료 (🧠=의미검색 / 🔤=키워드검색)</div>
+        <div id="k_list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:60px;"></div>
+        <button onclick="closeKnowledge()" style="margin-top:14px;padding:10px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
       </div>
     </div>
 
@@ -5030,9 +5045,11 @@ function isAppearanceRequest(text) {
 async function callGeminiChat(text) {
   const key = localStorage.getItem('dahoon_gemini_key');
   if (!key) throw new Error('NO_GEMINI');
+  let kbCtx = ''; try { kbCtx = await retrieveKnowledge(text); } catch (e) {}   // 🧠 내 지식창고에서 관련 자료 검색
   const sys = "너는 '다브스', '다훈'의 똑똑한 개인 비서 AI야. 한국어로 친근하게 답해. "
     + "가계부·일정 같은 개인 데이터 질문뿐 아니라, 과학·상식·역사·설명 등 일반 지식 질문에도 아는 만큼 자세하고 정확하게 답해줘(예: '시냅스 작용', '블랙홀'). "
-    + "네가 어떤 AI인지 물으면 '구글 Gemini 모델 기반의 다브스'라고 답해. 모르면 솔직히 모른다고 해.\n\n[사용자 데이터]\n" + buildJarvisContext();
+    + "네가 어떤 AI인지 물으면 '구글 Gemini 모델 기반의 다브스'라고 답해. 모르면 솔직히 모른다고 해.\n\n[사용자 데이터]\n" + buildJarvisContext()
+    + (kbCtx ? "\n\n[내 지식창고에서 찾은 참고자료 — 질문과 관련되면 이 내용을 우선 근거로 답해]\n" + kbCtx : "");
   async function call(model, useSearch) {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
     const body = {
@@ -5126,6 +5143,96 @@ function localHelp(text) {
     return '💸 "카페 오천원"처럼 말하면 지출이 바로 가계부에 기록돼요. "오늘 지출 얼마야"로 확인할 수 있고요.';
   return '저는 이런 걸 할 수 있어요 👇\n💸 지출 기록 — "카페 오천원"\n💼 업무 문서 작성 — "이메일 써줘" (아래 💼 업무비서 칩)\n🎨 이미지 생성 — 입력창 왼쪽 🎨 버튼\n🔍 국내 검색 — "강남 맛집" (🔍 검색 칩)\n💳 결제문자 자동기록 — 문자 공유\n📄 문서함 — 작성한 문서 보관\n무엇을 도와드릴까요?';
 }
+
+// ── 🧠 지식창고 (RAG): 내 자료를 넣으면 다브스가 그걸 근거로 답변 ──
+// Gemini 임베딩(text-embedding-004)으로 의미 검색, 실패 시 키워드 폴백.
+async function embedText(text) {
+  const key = localStorage.getItem('dahoon_gemini_key');
+  if (!key) return null;
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + encodeURIComponent(key), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'models/text-embedding-004', content: { parts: [{ text: String(text).slice(0, 8000) }] } })
+    });
+    const data = await res.json();
+    const v = data && data.embedding && data.embedding.values;
+    return Array.isArray(v) ? v : null;
+  } catch (e) { return null; }
+}
+function chunkText(text, size) {
+  size = size || 600;
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (!t) return [];
+  if (t.length <= size) return [t];
+  const sentences = t.split(/(?<=[.?!。！？])\s+/);
+  const merged = []; let cur = '';
+  for (const s of sentences) {
+    if ((cur + ' ' + s).trim().length > size && cur) { merged.push(cur.trim()); cur = s; }
+    else cur = (cur + ' ' + s).trim();
+  }
+  if (cur.trim()) merged.push(cur.trim());
+  const out = [];
+  for (const c of merged) { if (c.length <= size * 1.6) out.push(c); else for (let i = 0; i < c.length; i += size) out.push(c.slice(i, i + size)); }
+  return out;
+}
+function cosineSim(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return (na && nb) ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+}
+function getKnowledge() { try { const k = JSON.parse(dashVal('knowledge') || '[]'); return Array.isArray(k) ? k : []; } catch (e) { return []; } }
+async function retrieveKnowledge(query, k) {
+  const kb = getKnowledge(); if (!kb.length) return '';
+  k = k || 3;
+  const chunks = [];
+  kb.forEach(e => (e.chunks || []).forEach(c => chunks.push({ title: e.title, t: c.t, v: c.v })));
+  if (!chunks.length) return '';
+  const qv = await embedText(query);
+  let scored;
+  if (qv) {
+    scored = chunks.map(c => ({ c, s: c.v ? cosineSim(qv, c.v) : 0 }));
+  } else {   // 임베딩 실패 → 키워드 폴백
+    const terms = String(query).toLowerCase().split(/\s+/).filter(w => w.length > 1);
+    scored = chunks.map(c => { const low = (c.t || '').toLowerCase(); let s = 0; terms.forEach(w => { if (low.indexOf(w) > -1) s++; }); return { c, s: terms.length ? s / terms.length : 0 }; });
+  }
+  scored.sort((a, b) => b.s - a.s);
+  const top = scored.filter(x => x.s > 0.45).slice(0, k);
+  if (!top.length) return '';
+  return top.map(x => '- [' + (x.c.title || '자료') + '] ' + x.c.t).join('\n');
+}
+async function saveKnowledge() {
+  const title = (document.getElementById('k_title').value || '').trim();
+  const text = (document.getElementById('k_text').value || '').trim();
+  if (!text) { toast('내용을 입력해 주세요'); return; }
+  const btn = document.getElementById('k_save'); if (btn) { btn.disabled = true; btn.textContent = '학습 중…'; }
+  const chunksTxt = chunkText(text, 600);
+  const chunks = [];
+  for (const ct of chunksTxt) { const v = await embedText(ct); chunks.push({ t: ct, v: v }); }
+  const kb = getKnowledge();
+  kb.unshift({ id: Date.now(), ts: Date.now(), title: title || text.slice(0, 20), chunks });
+  if (kb.length > 300) kb.length = 300;
+  dbSet('knowledge', JSON.stringify(kb));
+  document.getElementById('k_title').value = ''; document.getElementById('k_text').value = '';
+  if (btn) { btn.disabled = false; btn.textContent = '➕ 추가'; }
+  renderKnowledgeList();
+  toast('🧠 지식창고에 추가했어요' + (chunks.some(c => !c.v) ? ' (임베딩 일부 실패 — 키워드로 검색돼요)' : ''));
+}
+function renderKnowledgeList() {
+  const kb = getKnowledge(); const list = document.getElementById('k_list'); if (!list) return;
+  if (!kb.length) { list.innerHTML = '<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">아직 넣은 자료가 없어요.<br>위 칸에 메모·문서를 붙여넣고 ➕ 추가를 눌러보세요.</div>'; return; }
+  list.innerHTML = kb.map(e => {
+    const preview = (((e.chunks && e.chunks[0] && e.chunks[0].t) || '')).slice(0, 48).replace(/</g, '&lt;');
+    const embedded = (e.chunks || []).some(c => c.v);
+    return '<div style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(16,185,129,0.18);border-radius:10px;padding:10px 12px;">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (e.title || '자료').replace(/</g, '&lt;') + ' ' + (embedded ? '🧠' : '🔤') + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + preview + '…</div></div>'
+      + '<button onclick="deleteKnowledge(' + e.id + ')" title="삭제" style="background:transparent;border:none;color:#f87171;cursor:pointer;font-size:15px;padding:4px;">🗑</button></div>';
+  }).join('');
+}
+function openKnowledge() { renderKnowledgeList(); const m = document.getElementById('knowledgeModal'); if (m) m.style.display = 'flex'; }
+function closeKnowledge() { const m = document.getElementById('knowledgeModal'); if (m) m.style.display = 'none'; }
+function deleteKnowledge(id) { const kb = getKnowledge().filter(e => e.id !== id); dbSet('knowledge', JSON.stringify(kb)); renderKnowledgeList(); }
 
 // ── 💼 업무 비서: 이메일·기획서·보고서·코드 등 문서 작성 ──
 function isWorkDocRequest(text) {
