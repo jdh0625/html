@@ -5030,9 +5030,11 @@ function isAppearanceRequest(text) {
 async function callGeminiChat(text) {
   const key = localStorage.getItem('dahoon_gemini_key');
   if (!key) throw new Error('NO_GEMINI');
-  const sys = "너는 '다브스', '다훈'의 개인 비서 AI야. 한국어로 친근하고 간결하게 답해. 필요하면 최신 정보로 정확히 답하고, 사용자 데이터도 참고해.\n\n[사용자 데이터]\n" + buildJarvisContext();
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
-  async function call(useSearch) {
+  const sys = "너는 '다브스', '다훈'의 똑똑한 개인 비서 AI야. 한국어로 친근하게 답해. "
+    + "가계부·일정 같은 개인 데이터 질문뿐 아니라, 과학·상식·역사·설명 등 일반 지식 질문에도 아는 만큼 자세하고 정확하게 답해줘(예: '시냅스 작용', '블랙홀'). "
+    + "네가 어떤 AI인지 물으면 '구글 Gemini 모델 기반의 다브스'라고 답해. 모르면 솔직히 모른다고 해.\n\n[사용자 데이터]\n" + buildJarvisContext();
+  async function call(model, useSearch) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
     const body = {
       system_instruction: { parts: [{ text: sys }] },
       contents: jarvisContents(text),
@@ -5046,13 +5048,18 @@ async function callGeminiChat(text) {
     const parts = cand && cand.content && cand.content.parts;
     const t = parts ? parts.map(p => (p && p.text) || '').join(' ').trim() : '';
     if (t) return t;
-    // 빈 응답이면 이유를 표면화 (SAFETY/MAX_TOKENS/RECITATION 등)
     const reason = (cand && cand.finishReason) || (data && data.promptFeedback && data.promptFeedback.blockReason) || 'NO_REPLY';
     throw new Error(reason);
   }
-  // 1) 구글 검색 연동 시도 → 2) 실패하면 검색 없이(기본 대화는 항상 되게)
-  try { return await call(true); }
-  catch (e) { return await call(false); }
+  // 여러 경로로 시도해 빈 응답/모델 문제에도 최대한 답이 나오게:
+  // 1) 2.0-flash 검색연동 → 2) 2.0-flash 기본 → 3) 2.5-flash 기본 → 4) flash-latest 기본
+  const attempts = [['gemini-2.0-flash', true], ['gemini-2.0-flash', false], ['gemini-2.5-flash', false], ['gemini-flash-latest', false]];
+  let lastErr;
+  for (const [model, useSearch] of attempts) {
+    try { return await call(model, useSearch); }
+    catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('NO_REPLY');
 }
 
 // ── 🔍 국내 정보 검색 (맛집·뉴스·날씨·가격) — Gemini + 구글 검색 ──
@@ -5095,13 +5102,18 @@ function focusWork() {
   jSet('jarvisHeroReply', '💼 무엇을 작성할까요? 예) "거래처 사과 이메일 써줘", "신제품 기획서 만들어줘", "엑셀 읽는 파이썬 코드 짜줘". 만든 문서는 📄 문서함에 저장돼요.');
 }
 // ── 앱 사용법/기능 질문을 로컬에서 정확히 안내 (AI는 앱 기능을 모름) ──
+function isModelQuestion(text) {
+  return /(모델|인공지능|엔진|gpt|제미나이|gemini|클로드|챗지피티).{0,6}(뭐|무엇|뭔|어떤|어느)|(무슨|어떤|어느|무엇).{0,6}(모델|ai|인공지능|엔진)|탑재.{0,5}(ai|모델|인공지능)|너\s?(는)?\s?(누구|정체|무슨\s?ai)|어떤\s?ai/i.test(text);
+}
 function isHelpRequest(text) {
   const whatCanYouDo = /(뭐\s?할\s?수\s?있|무엇을\s?할\s?수|어떤\s?기능|기능\s?(뭐|알려|목록|이|은)|넌\s?뭐|너\s?뭐\s?하|도와줄\s?수)/.test(text);
   const askHow = /(어떻게|어디서|어디에|어디야|어디 있|방법|사용법|쓰는\s?법|열어|열려|여는|만들어\?|시작해)/.test(text);
   const feature = /(업무\s?비서|문서|이메일|기획서|보고서|이미지|그림|사진|검색|맛집|지출|가계부|자산|투자|할\s?일|플래너|결제|영수증|문자|다브스)/.test(text);
-  return whatCanYouDo || (askHow && feature);
+  return whatCanYouDo || isModelQuestion(text) || (askHow && feature);
 }
 function localHelp(text) {
+  if (isModelQuestion(text))
+    return "저는 구글의 'Gemini'(제미나이) 모델을 기반으로 동작하는 개인 비서 '다브스'예요. 🧠 대화·검색은 Gemini 2.0 Flash, 이미지 생성도 Gemini를 쓰고, 지출 기록·가계부 같은 건 앱이 직접 계산해요. (참고로 '시냅스 작용' 같은 일반 지식 질문에도 답할 수 있어요 — 그냥 물어보세요!)";
   if (/(업무\s?비서|이메일|기획서|보고서|제안서|문서|코드)/.test(text))
     return '💼 업무 비서는 저에게 "말로 시키면" 돼요. 예를 들어 "거래처 사과 이메일 써줘", "주간 보고서 초안 써줘", "엑셀 읽는 파이썬 코드 짜줘"처럼요. 그러면 문서를 작성해 큰 창으로 보여드리고, 복사하거나 📄 문서함에 저장할 수 있어요. (아래 💼 업무비서 칩을 눌러 예시로 바로 시작해도 돼요!)';
   if (/(이미지|그림|사진)/.test(text))
