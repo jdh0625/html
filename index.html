@@ -903,6 +903,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <button onclick="jarvisChip('오늘 할 일')">✅ 오늘 할 일</button>
           <button onclick="jarvisChip('총 자산 얼마야')">📊 자산</button>
           <button onclick="jarvisChip('이번 달 여유 얼마야')">💰 여유 예산</button>
+          <button onclick="focusWork()">💼 업무비서</button>
           <button onclick="focusSearch()">🔍 검색</button>
           <button onclick="openWorkDocs()">📄 문서함</button>
         </div>
@@ -5035,16 +5036,19 @@ async function callGeminiChat(text) {
     const body = {
       system_instruction: { parts: [{ text: sys }] },
       contents: jarvisContents(text),
-      generationConfig: { maxOutputTokens: 500, temperature: 0.6 }
+      generationConfig: { maxOutputTokens: 1024, temperature: 0.6 }
     };
     if (useSearch) body.tools = [{ google_search: {} }];   // 구글 검색 연동 (지원 시)
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
-    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const cand = data && data.candidates && data.candidates[0];
+    const parts = cand && cand.content && cand.content.parts;
     const t = parts ? parts.map(p => (p && p.text) || '').join(' ').trim() : '';
     if (t) return t;
-    throw new Error('NO_REPLY');
+    // 빈 응답이면 이유를 표면화 (SAFETY/MAX_TOKENS/RECITATION 등)
+    const reason = (cand && cand.finishReason) || (data && data.promptFeedback && data.promptFeedback.blockReason) || 'NO_REPLY';
+    throw new Error(reason);
   }
   // 1) 구글 검색 연동 시도 → 2) 실패하면 검색 없이(기본 대화는 항상 되게)
   try { return await call(true); }
@@ -5069,10 +5073,11 @@ async function callGeminiSearch(text) {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
-    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const cand = data && data.candidates && data.candidates[0];
+    const parts = cand && cand.content && cand.content.parts;
     const t = parts ? parts.map(p => (p && p.text) || '').join(' ').trim() : '';
     if (t) return t;
-    throw new Error('NO_REPLY');
+    throw new Error((cand && cand.finishReason) || 'NO_REPLY');
   }
   try { return await call(true); } catch (e) { return await call(false); }
 }
@@ -5081,6 +5086,33 @@ function focusSearch() {
   const inp = document.getElementById('jarvisInput');
   if (inp) { inp.placeholder = '🔍 검색: 강남 맛집 / 오늘 뉴스 / 내일 날씨 / 환율'; inp.focus(); }
   jSet('jarvisHeroReply', '무엇을 검색할까요? 맛집·뉴스·날씨·가격 등을 물어보세요. 🔍');
+}
+// ── 💼 업무비서 진입: 버튼으로 시작 (말로 시키는 방식이라 안내가 필요) ──
+function focusWork() {
+  if (jarvisImageMode) toggleImageMode();
+  const inp = document.getElementById('jarvisInput');
+  if (inp) { inp.placeholder = '예: 거래처 사과 이메일 써줘 / 주간 보고서 초안'; inp.focus(); }
+  jSet('jarvisHeroReply', '💼 무엇을 작성할까요? 예) "거래처 사과 이메일 써줘", "신제품 기획서 만들어줘", "엑셀 읽는 파이썬 코드 짜줘". 만든 문서는 📄 문서함에 저장돼요.');
+}
+// ── 앱 사용법/기능 질문을 로컬에서 정확히 안내 (AI는 앱 기능을 모름) ──
+function isHelpRequest(text) {
+  const whatCanYouDo = /(뭐\s?할\s?수\s?있|무엇을\s?할\s?수|어떤\s?기능|기능\s?(뭐|알려|목록|이|은)|넌\s?뭐|너\s?뭐\s?하|도와줄\s?수)/.test(text);
+  const askHow = /(어떻게|어디서|어디에|어디야|어디 있|방법|사용법|쓰는\s?법|열어|열려|여는|만들어\?|시작해)/.test(text);
+  const feature = /(업무\s?비서|문서|이메일|기획서|보고서|이미지|그림|사진|검색|맛집|지출|가계부|자산|투자|할\s?일|플래너|결제|영수증|문자|다브스)/.test(text);
+  return whatCanYouDo || (askHow && feature);
+}
+function localHelp(text) {
+  if (/(업무\s?비서|이메일|기획서|보고서|제안서|문서|코드)/.test(text))
+    return '💼 업무 비서는 저에게 "말로 시키면" 돼요. 예를 들어 "거래처 사과 이메일 써줘", "주간 보고서 초안 써줘", "엑셀 읽는 파이썬 코드 짜줘"처럼요. 그러면 문서를 작성해 큰 창으로 보여드리고, 복사하거나 📄 문서함에 저장할 수 있어요. (아래 💼 업무비서 칩을 눌러 예시로 바로 시작해도 돼요!)';
+  if (/(이미지|그림|사진)/.test(text))
+    return '🎨 이미지는 입력창 왼쪽의 🎨 버튼을 켜고 "노을 진 바다"처럼 그릴 걸 말하면 그려드려요. 다시 누르면 일반 대화로 돌아와요.';
+  if (/(검색|맛집|뉴스|날씨|환율)/.test(text))
+    return '🔍 검색은 아래 🔍 검색 칩을 누르거나, 그냥 "강남 맛집 추천", "오늘 뉴스", "내일 날씨"처럼 물어보면 돼요.';
+  if (/(결제|영수증|카드|문자)/.test(text))
+    return '💳 카드 결제 문자를 문자앱에서 "공유" → 다브스를 선택하면 금액·가맹점을 자동으로 읽어 가계부에 기록해요. (홈 화면에 설치한 앱에서 작동해요.)';
+  if (/(지출|가계부|기록|영수)/.test(text))
+    return '💸 "카페 오천원"처럼 말하면 지출이 바로 가계부에 기록돼요. "오늘 지출 얼마야"로 확인할 수 있고요.';
+  return '저는 이런 걸 할 수 있어요 👇\n💸 지출 기록 — "카페 오천원"\n💼 업무 문서 작성 — "이메일 써줘" (아래 💼 업무비서 칩)\n🎨 이미지 생성 — 입력창 왼쪽 🎨 버튼\n🔍 국내 검색 — "강남 맛집" (🔍 검색 칩)\n💳 결제문자 자동기록 — 문자 공유\n📄 문서함 — 작성한 문서 보관\n무엇을 도와드릴까요?';
 }
 
 // ── 💼 업무 비서: 이메일·기획서·보고서·코드 등 문서 작성 ──
@@ -5341,6 +5373,9 @@ function processVoice(text) {
     jarvisRespond(desc + ' ' + won(amt) + ' 기록했어요.');
     return;
   }
+
+  // ── 앱 사용법/기능 질문은 로컬로 정확히 안내 (AI는 앱 기능을 모르므로) ──
+  if (isHelpRequest(text)) { jarvisRespond(localHelp(text)); return; }
 
   // ── 업무 문서 작성 요청 → 길게 작성 + 문서함 (Gemini 키 있을 때) ──
   if (localStorage.getItem('dahoon_gemini_key') && isWorkDocRequest(text)) { jarvisWriteDoc(text); return; }
