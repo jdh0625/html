@@ -669,6 +669,8 @@ body.theme-light .jarvis-new { background: #f0efed; }
 }
 .jarvis-hero-input button.mic { background: rgba(255,255,255,0.1); }
 .jarvis-hero-input button.imgmode.active { background: linear-gradient(135deg, #ec4899, #8b5cf6); color: #fff; box-shadow: 0 0 0 2px rgba(236,72,153,0.35); }
+.jarvis-hero-input button.wakeon.active { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 0 0 2px rgba(16,185,129,0.35); animation: wakePulse 1.6s ease-in-out infinite; }
+@keyframes wakePulse { 0%,100% { box-shadow: 0 0 0 2px rgba(16,185,129,0.35); } 50% { box-shadow: 0 0 0 5px rgba(16,185,129,0.12); } }
 .jarvis-hero-input button:active { transform: scale(0.94); }
 .jarvis-hero-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
 .jarvis-hero-chips button {
@@ -897,6 +899,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <input id="jarvisInput" placeholder="예: 카페 오천원 / 오늘 지출 얼마야" onkeydown="if(event.key==='Enter')sendJarvisText()" />
           <button onclick="sendJarvisText()" title="전송">➤</button>
           <button onclick="startVoice()" class="mic" title="음성으로">🎤</button>
+          <button id="wakeBtn" onclick="toggleWakeWord()" class="mic wakeon" title="항상 듣기: &quot;다브스&quot;라고 부르면 반응">👂</button>
         </div>
         <div class="jarvis-hero-chips">
           <button onclick="jarvisChip('오늘 지출 얼마야')">💸 오늘 지출</button>
@@ -4912,6 +4915,7 @@ function jarvisSupported() { return ('webkitSpeechRecognition' in window) || ('S
 function jSet(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
 function startVoice() {
   const ov = document.getElementById('jarvisOverlay'); if (!ov) return;
+  if (wakeListening) { wakeBusy = true; stopWakeRec(); }   // 수동 음성 중엔 웨이크워드 일시정지
   ov.classList.add('open');
   jSet('jarvisHeard', ''); jSet('jarvisReply', '');
   if (!jarvisSupported()) { jSet('jarvisStatus', '이 브라우저는 음성인식을 지원하지 않아요 (크롬 권장)'); return; }
@@ -4930,7 +4934,7 @@ function startVoice() {
     if (orb) orb.classList.remove('listening');
     jSet('jarvisStatus', e.error === 'not-allowed' ? '마이크 권한을 허용해 주세요' : '못 들었어요. 다시 눌러 말해 주세요');
   };
-  jarvisRec.onend = () => { if (orb) orb.classList.remove('listening'); };
+  jarvisRec.onend = () => { if (orb) orb.classList.remove('listening'); if (wakeListening) { wakeBusy = false; setTimeout(startWakeRec, 1200); } };
   try { jarvisRec.start(); } catch(e) {}
 }
 function closeVoice() {
@@ -4938,6 +4942,68 @@ function closeVoice() {
   try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch(e) {}
   const ov = document.getElementById('jarvisOverlay'); if (ov) ov.classList.remove('open');
   const orb = document.getElementById('jarvisOrb'); if (orb) orb.classList.remove('listening');
+  if (wakeListening) { wakeBusy = false; setTimeout(startWakeRec, 800); }   // 웨이크워드 재개
+}
+
+// ── 👂 웨이크워드: 앱이 열려 있을 때 "다브스" 하고 부르면 반응 (항상 듣기) ──
+let wakeRec = null, wakeListening = false, wakeBusy = false;
+function toggleWakeWord() {
+  if (!jarvisSupported()) { toast('이 브라우저는 음성인식을 지원하지 않아요 (크롬 권장)'); return; }
+  wakeListening = !wakeListening;
+  const b = document.getElementById('wakeBtn'); if (b) b.classList.toggle('active', wakeListening);
+  if (wakeListening) {
+    wakeBusy = false; startWakeRec();
+    jSet('jarvisHeroReply', '👂 항상 듣기 ON — 이제 "다브스"라고 부르면 대답해요. (앱이 꺼져 있을 땐 "헤이 구글, 다브스 열어줘")');
+    toast('👂 항상 듣기 ON');
+  } else {
+    stopWakeRec();
+    jSet('jarvisHeroReply', '항상 듣기를 껐어요.');
+    toast('항상 듣기 OFF');
+  }
+}
+function stopWakeRec() { try { if (wakeRec) { wakeRec.onend = null; wakeRec.onerror = null; wakeRec.abort(); } } catch(e) {} wakeRec = null; }
+function startWakeRec() {
+  if (!wakeListening || wakeBusy) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return;
+  try { if (wakeRec) { wakeRec.onend = null; wakeRec.abort(); } } catch(e) {}
+  wakeRec = new SR();
+  wakeRec.lang = 'ko-KR'; wakeRec.continuous = true; wakeRec.interimResults = true; wakeRec.maxAlternatives = 1;
+  wakeRec.onresult = e => {
+    let txt = ''; for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
+    if (/다\s?[브부보비]\s?스|타\s?브스|다보스|자비스/.test(txt)) wakeTriggered();
+  };
+  wakeRec.onerror = e => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      wakeListening = false; const b = document.getElementById('wakeBtn'); if (b) b.classList.remove('active');
+      toast('마이크 권한이 필요해요 (항상 듣기 꺼짐)');
+    }
+    // no-speech/aborted/network 등은 무시 → onend에서 재시작
+  };
+  wakeRec.onend = () => { if (wakeListening && !wakeBusy) setTimeout(startWakeRec, 400); };
+  try { wakeRec.start(); } catch(e) { setTimeout(() => { if (wakeListening && !wakeBusy) startWakeRec(); }, 800); }
+}
+function wakeTriggered() {
+  if (wakeBusy) return; wakeBusy = true;
+  stopWakeRec();
+  const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
+  jSet('jarvisHeroReply', '👂 네, 말씀하세요…');
+  try { jarvisSpeak('네, 말씀하세요'); } catch(e) {}
+  setTimeout(wakeListenCommand, 900);   // 호출어 감지 후 명령 청취
+}
+function wakeListenCommand() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { wakeBusy = false; return; }
+  let rec; try { rec = new SR(); } catch(e) { wakeBusy = false; if (wakeListening) setTimeout(startWakeRec, 1000); return; }
+  rec.lang = 'ko-KR'; rec.interimResults = false; rec.maxAlternatives = 1;
+  let got = false;
+  rec.onresult = e => { got = true; const t = (e.results[0][0].transcript || '').trim(); if (t) { try { processVoice(t); } catch(err) { jarvisRespond('처리 중 문제가 생겼어요.'); } } };
+  rec.onerror = () => {};
+  rec.onend = () => {
+    const av = document.getElementById('jarvisHeroAvatar'); if (av && !got) av.classList.remove('thinking');
+    wakeBusy = false;
+    if (wakeListening) setTimeout(startWakeRec, got ? 1600 : 900);   // 답변 TTS 겹침 방지로 여유
+  };
+  try { rec.start(); } catch(e) { wakeBusy = false; if (wakeListening) setTimeout(startWakeRec, 1000); }
 }
 function jarvisSpeak(text) {
   try {
