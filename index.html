@@ -1403,6 +1403,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
             </select>
           </div>
           <div id="share_raw" style="font-size:10px;color:var(--muted);background:rgba(255,255,255,0.04);border-radius:6px;padding:8px;max-height:60px;overflow:auto;white-space:pre-wrap;line-height:1.5;"></div>
+          <label style="display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:2px;">
+            <input type="checkbox" id="share_auto" onchange="setSmsAutoSave(this.checked)" style="width:15px;height:15px;accent-color:#3b82f6;" />
+            앞으로 현대·국민 등 결제문자는 <b style="color:#60a5fa;">확인 없이 자동 저장</b>
+          </label>
           <div style="display:flex;gap:10px;margin-top:4px;">
             <button onclick="closeShareModal()" style="flex:1;padding:11px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">취소</button>
             <button onclick="saveSharedExpense()" style="flex:2;padding:11px;border:none;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;font-weight:600;cursor:pointer;font-size:13px;">저장</button>
@@ -5631,6 +5635,8 @@ function parsePaymentSMS(raw) {
   const text = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!text) return null;
   const isCancel = /(취소|환불|승인취소)/.test(text);
+  const isDeposit = /(입금)/.test(text) && !/(출금|승인|결제)/.test(text);
+  const type = (isCancel || isDeposit) ? 'income' : 'expense';
   // 금액 후보: 'NN,NNN원' 중 잔액/한도/포인트/누적/합계 앞수식은 제외 → 첫 번째를 승인액으로
   const amts = []; const re = /([\d,]{2,})\s*원/g; let m;
   while ((m = re.exec(text))) {
@@ -5640,13 +5646,17 @@ function parsePaymentSMS(raw) {
     if (n > 0) amts.push(n);
   }
   if (!amts.length) return null;
-  // 가맹점: 카드사·키워드·금액·날짜/시간 등 제거 후 남는 꼬리 부분
+  // 발급사(현대카드·국민은행 등) + 결제행위 여부로 신뢰도 판단
+  const hasIssuer = /(현대|국민|KB|신한|삼성|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오|토스|케이뱅크|IBK|기업|SC|카드|은행)/i.test(text);
+  const hasAction = /(승인|결제|출금|이체|입금|사용)/.test(text);
+  const confidence = (hasIssuer && hasAction) ? 'high' : 'low';
+  // 가맹점: 카드사·은행명·키워드·금액·날짜/시간·이름 제거 후 남는 꼬리 부분
   let merchant = text
     .replace(/\[?\s*web발신\s*\]?/gi, ' ')
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/[\d,]+\s*원/g, ' ')
-    .replace(/(신한|삼성|현대|국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK|기업|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
-    .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용)/g, ' ')
+    .replace(/(현대|신한|삼성|국민|KB국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK기업|IBK|기업|SC제일|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
+    .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용|누계액)/g, ' ')
     .replace(/\d{1,4}[.\-\/]\d{1,2}([.\-\/]\d{1,4})?/g, ' ')   // 날짜(06/20 또는 2026-06-20)
     .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ')                    // 시간
     .replace(/\S*님/g, ' ')                                     // 이름(홍길동님) 제거
@@ -5656,18 +5666,34 @@ function parsePaymentSMS(raw) {
     .replace(/\s+/g, ' ').trim();
   const parts = merchant.split(' ').filter(w => w.length >= 1);
   merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
-  if (!merchant) merchant = '카드결제';
-  return { amt: amts[0], merchant, isCancel };
+  if (!merchant) merchant = (type === 'income' ? '입금' : (/(출금|이체)/.test(text) ? '출금' : '카드결제'));
+  return { amt: amts[0], merchant, isCancel, type, confidence };
 }
+// 최근 3분내 같은 금액·유사 내용 기록이 있으면 중복으로 간주 (문자 두 번 공유 방지)
+function isDuplicateRecent(amt, desc) {
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch (e) {}
+  const cutoff = Date.now() - 3 * 60 * 1000, key = (desc || '').slice(0, 4);
+  return (Array.isArray(led) ? led : []).some(r => r && r.amt === amt && (r.id || 0) > cutoff && (!key || (r.desc || '').indexOf(key) > -1));
+}
+function setSmsAutoSave(on) { dbSet('sms_autosave', on ? '1' : ''); toast(on ? '앞으로 결제문자는 확인 없이 자동 저장해요' : '자동 저장을 껐어요'); }
 function handleSharedPayment(raw) {
   const p = parsePaymentSMS(raw);
-  const cat = p ? detectCategory(p.merchant + ' ' + raw) : '💳 기타';
-  openShareModal(p ? p.amt : '', p ? p.merchant : '', cat, (p && p.isCancel) ? 'income' : 'expense', raw);
-  if (!p) toast('금액을 자동으로 못 읽었어요. 직접 입력해 주세요.');
+  if (!p) { openShareModal('', '', '💳 기타', 'expense', raw); toast('금액을 자동으로 못 읽었어요. 직접 입력해 주세요.'); return; }
+  const cat = detectCategory(p.merchant + ' ' + raw);
+  // 자동 저장 ON + 신뢰도 높음 → 확인 없이 바로 기록 (중복은 건너뜀)
+  if (dashVal('sms_autosave') === '1' && p.confidence === 'high') {
+    if (isDuplicateRecent(p.amt, p.merchant)) { toast('이미 기록된 결제 같아 건너뛰었어요'); return; }
+    recordExpenseEntry(p.amt, p.merchant, cat, p.type);
+    toast((p.type === 'income' ? '↩ ' : '💳 ') + p.merchant + ' ' + p.amt.toLocaleString() + '원 자동 기록 (틀리면 가계부에서 수정)');
+    return;
+  }
+  openShareModal(p.amt, p.merchant, cat, p.type, raw);
 }
 function openShareModal(amt, desc, cat, type, raw) {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   set('share_amt', amt || ''); set('share_desc', desc || ''); set('share_cat', cat || '💳 기타'); set('share_type', type || 'expense');
+  const auto = document.getElementById('share_auto'); if (auto) auto.checked = (dashVal('sms_autosave') === '1');
   const rawEl = document.getElementById('share_raw'); if (rawEl) rawEl.textContent = raw ? ('원문: ' + String(raw).slice(0, 140)) : '';
   const mod = document.getElementById('shareModal'); if (mod) mod.style.display = 'flex';
 }
