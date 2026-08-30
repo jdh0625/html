@@ -1049,6 +1049,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <button onclick="changeLedgerMonth(1)"  style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:rgba(255,255,255,0.6);border-radius:6px;padding:5px 13px;cursor:pointer;font-size:17px;">&#8250;</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="openLedgerAudit()" title="부풀려졌을 수 있는 이상 금액 점검" style="background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;border-radius:6px;padding:6px 11px;cursor:pointer;font-size:12px;">🔍 이상금액 점검</button>
           <span style="font-size:12px;color:var(--muted);">월 예산</span>
           <input type="number" id="budgetInput" placeholder="0" style="width:120px;padding:6px 10px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;text-align:right;" oninput="saveLedger();updateSummary();" />
           <span style="font-size:12px;color:var(--muted);">원</span>
@@ -1430,6 +1431,16 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">다브스가 작성한 이메일·기획서·보고서·코드 보관함</div>
         <div id="docsList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div>
         <button onclick="closeDocsModal()" style="margin-top:14px;padding:10px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
+      </div>
+    </div>
+
+    <!-- 🔍 가계부 이상 금액 점검 -->
+    <div id="auditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:330;align-items:center;justify-content:center;" onclick="closeLedgerAudit()">
+      <div onclick="event.stopPropagation()" style="background:#0c1829;border:1px solid rgba(251,191,36,0.35);border-radius:16px;padding:22px;width:520px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;">
+        <h3 style="color:#fbbf24;margin-bottom:4px;font-size:15px;">🔍 이상 금액 점검</h3>
+        <div id="auditSummary" style="font-size:12px;color:var(--muted);margin-bottom:14px;"></div>
+        <div id="auditList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:60px;"></div>
+        <button onclick="closeLedgerAudit()" style="margin-top:14px;padding:10px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;">닫기</button>
       </div>
     </div>
 
@@ -5154,6 +5165,76 @@ function recordExpenseEntry(amt, desc, cat, type) {
   dbSet('ledger-' + y + '-' + m, JSON.stringify(led));
   if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear() === y && ledgerCurrent.getMonth() === m) { ledgerData = led; if (typeof renderLedger === 'function') renderLedger(); }
   if (typeof renderHome === 'function') renderHome();
+}
+
+// ── 🔍 가계부 이상 금액 점검 (parseAmount 버그로 부풀려졌을 수 있는 지출 찾기) ──
+function collectAllExpenses() {
+  const months = new Set();
+  if (remoteSnapshot) Object.keys(remoteSnapshot).forEach(k => { if (/^ledger-\d+-\d+$/.test(k)) months.add(k); });
+  try { for (let i = 0; i < localStorage.length; i++) { const lk = localStorage.key(i); if (lk && /^dahoon_ledger-\d+-\d+$/.test(lk)) months.add(lk.slice(7)); } } catch (e) {}
+  const all = [];
+  months.forEach(mk => {
+    let arr = []; try { arr = JSON.parse(dashVal(mk) || '[]'); } catch (e) {}
+    if (!Array.isArray(arr)) return;
+    arr.forEach(r => { if (r && r.type === 'expense' && (r.amt || 0) > 0) all.push({ monthKey: mk, id: r.id, date: r.date, desc: r.desc || '', cat: r.cat || '', amt: r.amt }); });
+  });
+  return all;
+}
+function openLedgerAudit() {
+  const all = collectAllExpenses();
+  const amts = all.map(e => e.amt).slice().sort((a, b) => a - b);
+  const median = amts.length ? amts[Math.floor(amts.length / 2)] : 0;
+  const isFlag = a => (median > 0 && a >= median * 4 && a >= 30000) || a >= 200000;
+  const flagged = all.filter(e => isFlag(e.amt)).sort((a, b) => b.amt - a.amt);
+  renderAuditList(flagged, all.length, median);
+  const m = document.getElementById('auditModal'); if (m) m.style.display = 'flex';
+}
+function closeLedgerAudit() { const m = document.getElementById('auditModal'); if (m) m.style.display = 'none'; }
+function renderAuditList(flagged, total, median) {
+  const won = n => (n || 0).toLocaleString() + '원';
+  const sum = document.getElementById('auditSummary'), list = document.getElementById('auditList');
+  if (!sum || !list) return;
+  if (!total) { sum.textContent = '기록된 지출이 아직 없어요.'; list.innerHTML = ''; return; }
+  sum.innerHTML = '총 <b>' + total + '</b>건 중 <b style="color:#fbbf24;">' + flagged.length + '건</b>이 유난히 큽니다 (중앙값 ' + won(median) + '). 버그로 부풀려진 게 있으면 🔧 수정하거나 🗑 삭제하세요.';
+  if (!flagged.length) { list.innerHTML = '<div style="color:#4ade80;font-size:13px;text-align:center;padding:24px 0;">✅ 이상하게 큰 금액이 없어요. 가계부가 깨끗합니다!</div>'; return; }
+  list.innerHTML = flagged.map(e => {
+    const d = (e.desc || '지출').replace(/</g, '&lt;');
+    return '<div style="display:flex;align-items:center;gap:8px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.18);border-radius:10px;padding:10px 12px;">'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (e.cat || '') + ' ' + d + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);">' + (e.date || '') + ' · ' + e.monthKey.replace('ledger-', '') + '월</div></div>'
+      + '<div style="font-size:15px;font-weight:800;color:#fbbf24;white-space:nowrap;">' + won(e.amt) + '</div>'
+      + '<button onclick="auditEditAmount(\'' + e.monthKey + '\',' + e.id + ')" title="금액 수정" style="background:transparent;border:1px solid rgba(59,130,246,0.4);color:#60a5fa;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px;">🔧</button>'
+      + '<button onclick="auditDeleteEntry(\'' + e.monthKey + '\',' + e.id + ')" title="삭제" style="background:transparent;border:none;color:#f87171;cursor:pointer;font-size:15px;padding:2px 4px;">🗑</button></div>';
+  }).join('');
+}
+function syncLedgerIfCurrent(monthKey, arr) {
+  if (typeof ledgerCurrent !== 'undefined') {
+    const ck = 'ledger-' + ledgerCurrent.getFullYear() + '-' + ledgerCurrent.getMonth();
+    if (ck === monthKey && typeof ledgerData !== 'undefined') { ledgerData = arr; if (typeof renderLedger === 'function') renderLedger(); }
+  }
+  if (typeof renderHome === 'function') renderHome();
+}
+function auditEditAmount(monthKey, id) {
+  let arr = []; try { arr = JSON.parse(dashVal(monthKey) || '[]'); } catch (e) {}
+  const idx = arr.findIndex(r => r && r.id === id); if (idx < 0) return;
+  const input = prompt('올바른 금액을 입력하세요 (원):', arr[idx].amt);
+  if (input === null) return;
+  const n = parseInt(String(input).replace(/[^\d]/g, ''), 10);
+  if (!n || n <= 0) { toast('숫자를 입력해 주세요'); return; }
+  arr[idx].amt = n;
+  dbSet(monthKey, JSON.stringify(arr));
+  syncLedgerIfCurrent(monthKey, arr);
+  openLedgerAudit();
+  toast('금액을 ' + n.toLocaleString() + '원으로 수정했어요');
+}
+function auditDeleteEntry(monthKey, id) {
+  if (!confirm('이 지출 기록을 삭제할까요?')) return;
+  let arr = []; try { arr = JSON.parse(dashVal(monthKey) || '[]'); } catch (e) {}
+  arr = arr.filter(r => !(r && r.id === id));
+  dbSet(monthKey, JSON.stringify(arr));
+  syncLedgerIfCurrent(monthKey, arr);
+  openLedgerAudit();
+  toast('삭제했어요');
 }
 
 // ── 🔌 다브스 에이전트: Gemini가 스스로 도구(지출기록·이미지·문서·검색)를 판단해 실행 ──
