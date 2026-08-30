@@ -867,7 +867,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
     <div id="homeView">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;">
         <h1 style="margin:0;font-size:16px;">🏠 오늘 한눈에</h1>
-        <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">🔔 알림 켜기</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="notifTestBtn" onclick="sendTestNotification()" title="테스트 알림 보내기" style="display:none;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">🔔 테스트</button>
+          <button id="notifBtn" onclick="enableNotifications()" title="알림 켜기" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:var(--accent2);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">🔔 알림 켜기</button>
+        </div>
       </div>
 
       <!-- 다브스 AI 메인 -->
@@ -4621,9 +4624,26 @@ setInterval(() => {
 function updateNotifBtn() {
   const b = document.getElementById('notifBtn'); if (!b) return;
   if (!('Notification' in window)) { b.style.display = 'none'; return; }
-  if (Notification.permission === 'granted') { b.textContent = '🔔 알림 켜짐'; b.style.opacity = '0.6'; }
-  else if (Notification.permission === 'denied') { b.textContent = '🔕 알림 차단됨'; b.style.opacity = '0.6'; }
-  else { b.textContent = '🔔 알림 켜기'; b.style.opacity = '1'; }
+  const t = document.getElementById('notifTestBtn');
+  if (Notification.permission === 'granted') { b.textContent = '🔔 알림 켜짐'; b.style.opacity = '0.6'; if (t) t.style.display = ''; }
+  else if (Notification.permission === 'denied') { b.textContent = '🔕 알림 차단됨'; b.style.opacity = '0.6'; if (t) t.style.display = 'none'; }
+  else { b.textContent = '🔔 알림 켜기'; b.style.opacity = '1'; if (t) t.style.display = 'none'; }
+}
+// 테스트 알림 — 서버 푸시와 동일한 표시 경로(서비스워커 showNotification)로 실제 작동 확인
+async function sendTestNotification() {
+  if (!('Notification' in window)) { toast('이 브라우저는 알림을 지원하지 않아요'); return; }
+  if (Notification.permission !== 'granted') { enableNotifications(); return; }
+  try {
+    let reg = null;
+    try { reg = await navigator.serviceWorker.getRegistration('firebase-cloud-messaging-push-scope'); } catch(e) {}
+    if (!reg && 'serviceWorker' in navigator) { try { reg = await navigator.serviceWorker.ready; } catch(e) {} }
+    if (reg && reg.showNotification) {
+      await reg.showNotification('📋 다브스 · 오늘의 정리', { body: '알림이 정상 작동해요! 매일 밤 오늘 지출·할 일·예산을 정리해 보내드릴게요.', icon: 'icon-192.png', badge: 'icon-192.png', tag: 'davos-test' });
+    } else {
+      new Notification('📋 다브스 · 오늘의 정리', { body: '알림이 정상 작동해요!', icon: 'icon-192.png' });
+    }
+    toast('테스트 알림을 보냈어요 🔔');
+  } catch(e) { toast('알림 표시 실패: ' + (e.message || '')); }
 }
 function enableNotifications() {
   if (!('Notification' in window)) { toast('이 브라우저는 알림을 지원하지 않아요'); return; }
