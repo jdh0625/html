@@ -2697,6 +2697,7 @@ function renderLedger() {
   if (ledgerTab === 'cal') {
     if (empty) empty.style.display = 'none';
     list.innerHTML = renderLedgerCalendar();
+    bumpLedgerFonts();
     return;
   }
 
@@ -2756,6 +2757,7 @@ function renderLedger() {
     if (empty) empty.style.display = 'none';
     list.innerHTML = html;
   }
+  bumpLedgerFonts();
 }
 
 // 레코드의 '일'(날짜 숫자) 추출: iso 우선, 없으면 date "MM/DD"
@@ -2773,6 +2775,20 @@ function manShort(n) {
 function selectLedgerCalDay(d) {
   selectedCalDay = (selectedCalDay === d) ? null : d; // 다시 누르면 해제
   renderLedger();
+}
+// 가계부 화면(#ledgerView) 인라인 글자 크기를 5px씩 키움 (요청).
+// 이미 키운 요소는 data-fz-bumped로 표시해 중복 적용 방지. 동적 재렌더 노드는 새로 생성되므로 매번 1회만 적용됨.
+function bumpLedgerFonts() {
+  const root = document.getElementById('ledgerView');
+  if (!root) return;
+  root.querySelectorAll('*').forEach(node => {
+    if (node.getAttribute('data-fz-bumped')) return;
+    const fs = node.style && node.style.fontSize;
+    if (fs && fs.slice(-2) === 'px') {
+      const v = parseFloat(fs);
+      if (!isNaN(v)) { node.style.fontSize = (v + 5) + 'px'; node.setAttribute('data-fz-bumped', '1'); }
+    }
+  });
 }
 // 📅 달력(현재 보는 달) 렌더 → 각 날짜칸에 지출/수입 합계, 클릭 시 그날 내역
 function renderLedgerCalendar() {
@@ -2806,14 +2822,16 @@ function renderLedgerCalendar() {
     const exp = dayExp[d] || 0, inc = dayInc[d] || 0;
     const isToday = d === todayD;
     const isSel = d === selectedCalDay;
+    const hasData = exp || inc;
     const dowColor = dow === 0 ? '#f87171' : dow === 6 ? '#60a5fa' : 'rgba(255,255,255,0.82)';
-    const border = isSel ? '2px solid var(--accent)' : isToday ? '1px solid rgba(251,191,36,0.6)' : '1px solid rgba(59,130,246,0.08)';
-    const bg = isSel ? 'rgba(59,130,246,0.18)' : (exp || inc) ? 'rgba(59,130,246,0.05)' : 'transparent';
+    const border = isSel ? '2px solid var(--accent)' : isToday ? '1px solid rgba(251,191,36,0.6)' : '1px solid rgba(255,255,255,0.1)';
+    const bg = isSel ? 'rgba(59,130,246,0.18)' : hasData ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.03)';
     const expLine = exp ? `<div style="font-size:9px;color:#f87171;font-weight:700;line-height:1.25;">-${manShort(exp)}</div>` : '';
     const incLine = inc ? `<div style="font-size:9px;color:#4ade80;font-weight:700;line-height:1.25;">+${manShort(inc)}</div>` : '';
+    const noRecLine = !hasData ? `<div style="font-size:9px;color:rgba(255,255,255,0.28);font-weight:700;line-height:1.25;">·</div>` : ''; // 기록 없는 날 표시
     cells += `<div onclick="selectLedgerCalDay(${d})" style="cursor:pointer;min-height:52px;border:${border};border-radius:7px;background:${bg};padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;overflow:hidden;">
       <div style="font-size:11px;font-weight:${isToday ? '800' : '600'};color:${isToday ? '#fbbf24' : dowColor};">${d}</div>
-      ${expLine}${incLine}
+      ${expLine}${incLine}${noRecLine}
     </div>`;
   }
   const grid = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">' + cells + '</div>';
