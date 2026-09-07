@@ -428,18 +428,18 @@ input[type=checkbox] { accent-color:var(--accent); }
     margin: 0 auto;
   }
 
-  /* 가계부 배너 세로 */
-  #ledgerView > div:nth-child(2) {
+  /* 가계부 배너 세로 (시작배너 삽입으로 nth-child +1) */
+  #ledgerView > div:nth-child(3) {
     grid-template-columns: 1fr !important;
   }
 
   /* 요약 카드 2열 */
-  #ledgerView > div:nth-child(3) {
+  #ledgerView > div:nth-child(4) {
     grid-template-columns: 1fr 1fr !important;
   }
 
   /* 가계부 입력 줄 */
-  #ledgerView > div:nth-child(5) {
+  #ledgerView > div:nth-child(6) {
     grid-template-columns: 1fr 1fr !important;
     gap: 6px;
   }
@@ -1062,6 +1062,9 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         </div>
       </div>
 
+      <!-- 🚩 가계부 시작 기점 (첫 기록일 자동) -->
+      <div id="ledgerStartBanner" style="display:none;font-size:12px;color:var(--muted);margin:-4px 0 14px;padding:8px 13px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.12);border-radius:8px;"></div>
+
       <!-- ① 상단 배너: 주간 / 월간(반) + 예산목표(반) -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
 
@@ -1206,6 +1209,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <button id="tabAll"   onclick="setLedgerTab('all')"   style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:var(--accent);color:white;">전체</button>
         <button id="tabDaily" onclick="setLedgerTab('daily')" style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">일별 보기</button>
         <button id="tabWeek"  onclick="setLedgerTab('week')"  style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">주간 보기</button>
+        <button id="tabCal"   onclick="setLedgerTab('cal')"   style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">📅 달력</button>
       </div>
 
       <!-- ④ 입력 행 -->
@@ -1226,7 +1230,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 
       <!-- ⑤ 내역 테이블 -->
       <div style="background:var(--panel);border-radius:10px;border:1px solid rgba(59,130,246,0.1);overflow:hidden;">
-        <div style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 50px;padding:10px 14px;background:rgba(59,130,246,0.06);font-size:11px;color:var(--muted);letter-spacing:1px;border-bottom:1px solid rgba(59,130,246,0.1);">
+        <div id="ledgerListHeader" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 50px;padding:10px 14px;background:rgba(59,130,246,0.06);font-size:11px;color:var(--muted);letter-spacing:1px;border-bottom:1px solid rgba(59,130,246,0.1);">
           <span>날짜</span><span>구분</span><span>내용</span><span>카테고리</span><span style="text-align:right">금액</span><span style="text-align:center">삭제</span>
         </div>
         <div id="ledgerList" style="max-height:380px;overflow-y:auto;"></div>
@@ -2522,11 +2526,12 @@ async function load() {
 // ── 가계부 ──
 let ledgerData = [];
 let ledgerCurrent = new Date();
-let ledgerTab = 'all'; // all | daily | week
+let ledgerTab = 'all'; // all | daily | week | cal
+let selectedCalDay = null; // 달력 탭에서 선택한 날짜(일)
 
 function setLedgerTab(tab) {
   ledgerTab = tab;
-  ['all','daily','week'].forEach(t => {
+  ['all','daily','week','cal'].forEach(t => {
     const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     if (btn) {
       btn.style.background = t === tab ? 'var(--accent)' : 'transparent';
@@ -2562,6 +2567,7 @@ function saveLedger() {
 
 async function loadLedger() {
   selectedWeekIdx = -1; // 이번 주로 초기화
+  selectedCalDay = null; // 달력 선택일 초기화 (달 이동 시)
   updateLedgerTitle();
   const key = getLedgerKey(), bkey = getBudgetKey();
   let raw = null, budget = '';
@@ -2683,6 +2689,17 @@ function renderLedger() {
   const empty = document.getElementById('ledgerEmpty');
   if (!list) return;
 
+  // 컬럼 헤더는 달력 탭에서 숨김
+  const hdr = document.getElementById('ledgerListHeader');
+  if (hdr) hdr.style.display = (ledgerTab === 'cal') ? 'none' : '';
+
+  // 📅 달력 탭
+  if (ledgerTab === 'cal') {
+    if (empty) empty.style.display = 'none';
+    list.innerHTML = renderLedgerCalendar();
+    return;
+  }
+
   let rows = [...ledgerData];
   let html = '';
 
@@ -2702,7 +2719,7 @@ function renderLedger() {
       return `
         <div style="padding:8px 14px 4px;background:rgba(59,130,246,0.04);border-bottom:1px solid rgba(59,130,246,0.08);display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;font-weight:700;color:var(--accent2);">📅 ${day}</span>
-          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${dayExp.toLocaleString()}원</b>${dayInc>0?' · 수입 <b style="color:#4ade80">+'+dayInc.toLocaleString()+'원</b>':''}</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(dayExp)}</b>${dayInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(dayInc)+'</b>':''}</span>
         </div>` +
         items.map(r => rowHtml(r)).join('');
     }).join('');
@@ -2724,7 +2741,7 @@ function renderLedger() {
       return `
         <div style="padding:8px 14px 4px;background:rgba(139,92,246,0.06);border-bottom:1px solid rgba(139,92,246,0.12);display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;font-weight:700;color:#a78bfa;">📅 ${label}</span>
-          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wExp.toLocaleString()}원</b>${wInc>0?' · 수입 <b style="color:#4ade80">+'+wInc.toLocaleString()+'원</b>':''} · ${items.length}건</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(wExp)}</b>${wInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(wInc)+'</b>':''} · ${items.length}건</span>
         </div>` +
         items.map(r => rowHtml(r)).join('');
     }).join('');
@@ -2741,6 +2758,86 @@ function renderLedger() {
   }
 }
 
+// 레코드의 '일'(날짜 숫자) 추출: iso 우선, 없으면 date "MM/DD"
+function ledgerDayOf(r) {
+  if (r && typeof r.iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.iso)) return parseInt(r.iso.slice(8, 10), 10);
+  if (r && typeof r.date === 'string') { const m = r.date.match(/(\d{1,2})\D+(\d{1,2})/); if (m) return parseInt(m[2], 10); }
+  return null;
+}
+// 달력 칸용 축약 금액 (예: 1,200,000→120만, 12,000→1.2만, 5,000→5,000)
+function manShort(n) {
+  n = Math.round(Math.abs(n || 0));
+  if (n >= 10000) { const m = n / 10000; return (Number.isInteger(m) ? m : Math.round(m * 10) / 10).toLocaleString() + '만'; }
+  return n.toLocaleString();
+}
+function selectLedgerCalDay(d) {
+  selectedCalDay = (selectedCalDay === d) ? null : d; // 다시 누르면 해제
+  renderLedger();
+}
+// 📅 달력(현재 보는 달) 렌더 → 각 날짜칸에 지출/수입 합계, 클릭 시 그날 내역
+function renderLedgerCalendar() {
+  const y = ledgerCurrent.getFullYear(), mo = ledgerCurrent.getMonth();
+  const firstDow = new Date(y, mo, 1).getDay();       // 0=일 … 6=토
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+
+  const now = new Date();
+  const isThisMonth = now.getFullYear() === y && now.getMonth() === mo;
+  const todayD = isThisMonth ? now.getDate() : -1;
+  // 달력 열면 기본으로 오늘 선택(현재 달일 때만)
+  if (selectedCalDay == null && isThisMonth) selectedCalDay = todayD;
+
+  // 일별 합계
+  const dayExp = {}, dayInc = {};
+  ledgerData.forEach(r => {
+    const d = ledgerDayOf(r); if (!d) return;
+    if (r.type === 'income') dayInc[d] = (dayInc[d] || 0) + r.amt;
+    else dayExp[d] = (dayExp[d] || 0) + r.amt;
+  });
+
+  const dows = ['일', '월', '화', '수', '목', '금', '토'];
+  let head = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">'
+    + dows.map((w, i) => `<div style="text-align:center;font-size:10px;font-weight:700;color:${i === 0 ? '#f87171' : i === 6 ? '#60a5fa' : 'var(--muted)'};">${w}</div>`).join('')
+    + '</div>';
+
+  let cells = '';
+  for (let i = 0; i < firstDow; i++) cells += '<div></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = (firstDow + d - 1) % 7;
+    const exp = dayExp[d] || 0, inc = dayInc[d] || 0;
+    const isToday = d === todayD;
+    const isSel = d === selectedCalDay;
+    const dowColor = dow === 0 ? '#f87171' : dow === 6 ? '#60a5fa' : 'rgba(255,255,255,0.82)';
+    const border = isSel ? '2px solid var(--accent)' : isToday ? '1px solid rgba(251,191,36,0.6)' : '1px solid rgba(59,130,246,0.08)';
+    const bg = isSel ? 'rgba(59,130,246,0.18)' : (exp || inc) ? 'rgba(59,130,246,0.05)' : 'transparent';
+    const expLine = exp ? `<div style="font-size:9px;color:#f87171;font-weight:700;line-height:1.25;">-${manShort(exp)}</div>` : '';
+    const incLine = inc ? `<div style="font-size:9px;color:#4ade80;font-weight:700;line-height:1.25;">+${manShort(inc)}</div>` : '';
+    cells += `<div onclick="selectLedgerCalDay(${d})" style="cursor:pointer;min-height:52px;border:${border};border-radius:7px;background:${bg};padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;overflow:hidden;">
+      <div style="font-size:11px;font-weight:${isToday ? '800' : '600'};color:${isToday ? '#fbbf24' : dowColor};">${d}</div>
+      ${expLine}${incLine}
+    </div>`;
+  }
+  const grid = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">' + cells + '</div>';
+
+  // 선택일 상세
+  let detail;
+  if (selectedCalDay) {
+    const items = ledgerData.filter(r => ledgerDayOf(r) === selectedCalDay);
+    const e = items.filter(r => r.type === 'expense').reduce((s, r) => s + r.amt, 0);
+    const inc = items.filter(r => r.type === 'income').reduce((s, r) => s + r.amt, 0);
+    detail = `<div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(59,130,246,0.12);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px 8px;flex-wrap:wrap;gap:4px;">
+          <span style="font-size:13px;font-weight:700;color:var(--accent2);">📅 ${mo + 1}월 ${selectedCalDay}일</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(e)}</b>${inc > 0 ? ' · 수입 <b style="color:#4ade80">+' + wonHtml(inc) + '</b>' : ''} · ${items.length}건</span>
+        </div>`
+      + (items.length ? items.map(r => rowHtml(r)).join('') : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">이 날은 기록이 없어요.</div>')
+      + '</div>';
+  } else {
+    detail = '<div style="margin-top:14px;padding:16px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid rgba(59,130,246,0.12);">날짜를 선택하면 그날 내역을 볼 수 있어요.</div>';
+  }
+
+  return '<div style="padding:12px 14px 16px;">' + head + grid + detail + '</div>';
+}
+
 function rowHtml(r) {
   const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','📦 기타'];
   const catOpts = cats.map(c => `<option${c===r.cat?' selected':''}>${c}</option>`).join('');
@@ -2753,7 +2850,7 @@ function rowHtml(r) {
         ${catOpts}
       </select>
     </span>
-    <span id="ledger-amt-${r.id}" onclick="editLedgerField(${r.id},'amt')" style="text-align:right;font-weight:600;color:${r.type==='income'?'#4ade80':'#f87171'};cursor:pointer;" title="클릭하여 수정">${r.type==='income'?'+':'-'}${r.amt.toLocaleString()}원</span>
+    <span id="ledger-amt-${r.id}" onclick="editLedgerField(${r.id},'amt')" style="text-align:right;font-weight:600;color:${r.type==='income'?'#4ade80':'#f87171'};cursor:pointer;" title="클릭하여 수정">${r.type==='income'?'+':'-'}${wonHtml(r.amt)}</span>
     <span style="text-align:center;display:flex;gap:3px;justify-content:center;">
       <button onclick="editLedgerRow(${r.id})" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;">✏</button>
       <button onclick="deleteLedgerRow(${r.id})" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;">×</button>
@@ -2854,16 +2951,16 @@ function updateSummary() {
   const fmt = n => n.toLocaleString()+'원';
   const el = id => document.getElementById(id);
 
-  if(el('totalIncome'))    el('totalIncome').textContent = fmt(income);
-  if(el('totalExpense'))   el('totalExpense').textContent = fmt(expense);
-  if(el('totalBalance'))   { el('totalBalance').textContent=fmt(balance); el('totalBalance').style.color=balance>=0?'#fbbf24':'#f87171'; }
-  if(el('totalBudgetLeft')){ el('totalBudgetLeft').textContent=budget?fmt(left):'-'; el('totalBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
+  if(el('totalIncome'))    el('totalIncome').innerHTML = wonHtml(income);
+  if(el('totalExpense'))   el('totalExpense').innerHTML = wonHtml(expense);
+  if(el('totalBalance'))   { el('totalBalance').innerHTML=wonHtml(balance); el('totalBalance').style.color=balance>=0?'#fbbf24':'#f87171'; }
+  if(el('totalBudgetLeft')){ el('totalBudgetLeft').innerHTML=budget?wonHtml(left):'-'; el('totalBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
 
   // 월간 배너
-  if(el('monthlyExpenseBanner'))  el('monthlyExpenseBanner').textContent = fmt(expense);
-  if(el('monthlyIncomeBanner'))   el('monthlyIncomeBanner').textContent = fmt(income);
-  if(el('monthlyBalanceBanner'))  { el('monthlyBalanceBanner').textContent=fmt(balance); el('monthlyBalanceBanner').style.color=balance>=0?'#fbbf24':'#f87171'; }
-  if(el('monthlyBudgetLeft'))     { el('monthlyBudgetLeft').textContent=budget?fmt(left):'-'; el('monthlyBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
+  if(el('monthlyExpenseBanner'))  el('monthlyExpenseBanner').innerHTML = wonHtml(expense);
+  if(el('monthlyIncomeBanner'))   el('monthlyIncomeBanner').innerHTML = wonHtml(income);
+  if(el('monthlyBalanceBanner'))  { el('monthlyBalanceBanner').innerHTML=wonHtml(balance); el('monthlyBalanceBanner').style.color=balance>=0?'#fbbf24':'#f87171'; }
+  if(el('monthlyBudgetLeft'))     { el('monthlyBudgetLeft').innerHTML=budget?wonHtml(left):'-'; el('monthlyBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
 
   // 주간 배너 (선택된 주차 기준)
   const weekRange = buildWeekTabs();
@@ -2880,11 +2977,12 @@ function updateSummary() {
     const today = new Date(); today.setHours(12,0,0,0);
     const endDay = today < wSun ? today : wSun;
     const wDays = Math.max(1, Math.round((endDay - wMon) / 86400000) + 1);
-    if(el('weeklyExpense')) el('weeklyExpense').textContent = fmt(wExp);
-    if(el('weeklyIncome'))  el('weeklyIncome').textContent  = fmt(wInc);
+    if(el('weeklyExpense')) el('weeklyExpense').innerHTML = wonHtml(wExp);
+    if(el('weeklyIncome'))  el('weeklyIncome').innerHTML  = wonHtml(wInc);
     if(el('weeklyCount'))   el('weeklyCount').textContent   = weekRows.filter(r=>r.type==='expense').length + '건';
-    if(el('weeklyAvg'))     el('weeklyAvg').textContent     = fmt(Math.round(wExp / wDays));
+    if(el('weeklyAvg'))     el('weeklyAvg').innerHTML     = wonHtml(Math.round(wExp / wDays));
   }
+  updateLedgerStartBanner();
   updateTodayBudget();
 }
 
@@ -2918,7 +3016,7 @@ function updateTodayBudget() {
       el2('todayBudget').textContent = '+ 일 예산 설정';
       el2('todayBudget').style.color = '#a78bfa';
     } else {
-      el2('todayBudget').textContent = fmt2(remain);
+      el2('todayBudget').innerHTML = wonHtml(remain);
       el2('todayBudget').style.color = remain < 0 ? '#f87171' : '#4ade80';
     }
   }
@@ -2929,9 +3027,9 @@ function updateTodayBudget() {
   }
   if (el2('todayBudgetLabel')) {
     if (daily) {
-      el2('todayBudgetLabel').textContent = `일예산 ${daily.toLocaleString()}원 · 오늘지출 ${todayExp.toLocaleString()}원`;
+      el2('todayBudgetLabel').textContent = `일예산 ${wonText(daily)} · 오늘지출 ${wonText(todayExp)}`;
     } else {
-      el2('todayBudgetLabel').textContent = monthly ? `월예산 ${monthly.toLocaleString()}원 설정됨` : '';
+      el2('todayBudgetLabel').textContent = monthly ? `월예산 ${wonText(monthly)} 설정됨` : '';
     }
   }
   if (el2('todayBudgetDays')) {
@@ -3467,7 +3565,7 @@ async function renderInvest() {
   const totalRate = totalCost > 0 ? (totalPnl / totalCost * 100) : 0;
   const pnlColor  = totalPnl >= 0 ? '#4ade80' : '#f87171';
   const pnlSign   = totalPnl >= 0 ? '+' : '';
-  const fmt = n => n.toLocaleString() + '원';
+  const fmt = n => wonText(n);
 
   const el = id => document.getElementById(id);
   if(el('inv_total_val'))  el('inv_total_val').textContent = fmt(totalVal);
@@ -3477,7 +3575,7 @@ async function renderInvest() {
     el('inv_total_rate').style.color = pnlColor;
   }
   if(el('inv_total_pnl'))  {
-    el('inv_total_pnl').textContent  = pnlSign + fmt(totalPnl) + ' (' + pnlSign + totalRate.toFixed(2) + '%)';
+    el('inv_total_pnl').textContent  = pnlSign + wonFmt(totalPnl) + ' (' + pnlSign + totalRate.toFixed(2) + '%)';
     el('inv_total_pnl').style.color  = pnlColor;
   }
   if(el('inv_total_pnl2')) {
@@ -3722,7 +3820,7 @@ async function renderWish() {
   const el = id => document.getElementById(id);
   if(el('wish_total_count')) el('wish_total_count').textContent = total + '개';
   if(el('wish_done_count'))  el('wish_done_count').textContent  = done  + '개';
-  if(el('wish_total_price')) el('wish_total_price').textContent = totalPrice.toLocaleString() + '원';
+  if(el('wish_total_price')) el('wish_total_price').innerHTML = wonHtml(totalPrice);
 
   // 필터
   const filtered = wishData.filter(w => {
@@ -3782,7 +3880,7 @@ async function renderWish() {
         ${w.memo ? `<div style="font-size:11px;color:rgba(255,255,255,0.45);line-height:1.5;margin-bottom:8px;border-left:2px solid ${accent}44;padding-left:8px;">${w.memo}</div>` : ''}
         <!-- 하단: 금액 + 날짜 -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-          <span style="font-size:12px;font-weight:700;color:${accent};">${w.price ? w.price.toLocaleString() + '원' : '금액 미설정'}</span>
+          <span style="font-size:12px;font-weight:700;color:${accent};">${w.price ? wonHtml(w.price) : '금액 미설정'}</span>
           <div style="display:flex;align-items:center;gap:6px;">
             ${dday}
             ${w.date ? `<span style="font-size:10px;color:rgba(255,255,255,0.25);">${w.date.slice(5)}</span>` : ''}
@@ -4479,6 +4577,75 @@ function readDayTasks(dateKey) {
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function wonFmt(n) { return (n||0).toLocaleString() + '원'; }
 
+// ── 큰 금액 한글 병기 (만/억 단위 요약) ──
+// 8234500 → "약 823만원", 8000000 → "800만원", 120000000 → "1억 2,000만원", 1만 미만은 '' (요약 없음)
+function wonKor(n) {
+  const neg = Number(n) < 0;
+  const v = Math.round(Math.abs(Number(n) || 0));
+  if (v < 10000) return '';                        // 만 미만은 요약 안 함
+  const approx = (v % 10000) > 0;                  // 만 미만 나머지 있으면 '약'
+  const eok = Math.floor(v / 100000000);           // 억
+  const man = Math.floor((v % 100000000) / 10000); // 만 (0~9999)
+  let s = '';
+  if (eok) s += eok.toLocaleString() + '억';
+  if (man) s += (s ? ' ' : '') + man.toLocaleString() + '만';
+  return (approx ? '약 ' : '') + (neg ? '-' : '') + s + '원';
+}
+// HTML 병기용: 정확한 숫자 + 회색 한글 요약 (innerHTML/템플릿 문자열에서 사용)
+function wonHtml(n) {
+  const exact = (Number(n) || 0).toLocaleString() + '원';
+  const kor = wonKor(n);
+  return kor ? exact + '<span style="font-size:0.82em;color:var(--muted);font-weight:400;margin-left:5px;white-space:nowrap;">' + kor + '</span>' : exact;
+}
+// 텍스트 병기용 (토스트·AI 답변 등 innerHTML 아닌 곳): "1,234,567원 (약 123만원)"
+function wonText(n) {
+  const exact = (Number(n) || 0).toLocaleString() + '원';
+  const kor = wonKor(n);
+  return kor ? exact + ' (' + kor + ')' : exact;
+}
+
+// ── 가계부 시작 기점 (전체 월 스캔, 첫 기록일 자동) ──
+function getLedgerStartInfo() {
+  let minIso = null, count = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const lk = localStorage.key(i);
+      const mk = lk && lk.match(/^dahoon_ledger-(\d+)-(\d+)$/);
+      if (!mk) continue;
+      let arr = [];
+      try { arr = JSON.parse(localStorage.getItem(lk) || '[]'); } catch (e) { continue; }
+      if (!Array.isArray(arr)) continue;
+      const year = parseInt(mk[1], 10), mon = parseInt(mk[2], 10); // mon: 0-based
+      arr.forEach(r => {
+        if (!r || !r.amt) return;
+        count++;
+        let iso = (typeof r.iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.iso)) ? r.iso : null;
+        if (!iso && typeof r.date === 'string') {
+          const dm = r.date.match(/(\d{1,2})\D+(\d{1,2})/); // "MM/DD"
+          if (dm) iso = year + '-' + String(mon + 1).padStart(2, '0') + '-' + String(parseInt(dm[2], 10)).padStart(2, '0');
+        }
+        if (iso && (!minIso || iso < minIso)) minIso = iso;
+      });
+    }
+  } catch (e) {}
+  return { minIso, count };
+}
+function updateLedgerStartBanner() {
+  const el = document.getElementById('ledgerStartBanner');
+  if (!el) return;
+  const { minIso, count } = getLedgerStartInfo();
+  if (!minIso || !count) { el.style.display = 'none'; return; }
+  const start = new Date(minIso + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.max(1, Math.floor((today - start) / 86400000) + 1);
+  const p = minIso.split('-');
+  const bC = 'var(--accent2,#60a5fa)';
+  el.style.display = '';
+  el.innerHTML = '🚩 가계부 시작 <b style="color:' + bC + ';">' + p[0] + '.' + parseInt(p[1], 10) + '.' + parseInt(p[2], 10) + '</b>'
+    + ' · <b style="color:' + bC + ';">' + days.toLocaleString() + '일째</b>'
+    + ' · 총 <b style="color:' + bC + ';">' + count.toLocaleString() + '건</b> 기록';
+}
+
 function renderHome() {
   const home = document.getElementById('homeView');
   if (!home) return;
@@ -5057,7 +5224,7 @@ function jarvisChip(text) { jSet('jarvisHeroReply', '…'); try { pushHistory('u
 
 // ── AI 자유 대화 (설정 > AI 키가 있을 때) ──
 function buildJarvisContext() {
-  const won = n => (n||0).toLocaleString()+'원';
+  const won = n => wonText(n);
   const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
   let led=[]; try{led=JSON.parse(dashVal('ledger-'+y+'-'+m)||'[]');}catch(e){}
   const todayStr=pad(m+1)+'/'+pad(now.getDate());
@@ -5281,7 +5448,7 @@ function openLedgerAudit() {
 }
 function closeLedgerAudit() { const m = document.getElementById('auditModal'); if (m) m.style.display = 'none'; }
 function renderAuditList(flagged, total, median) {
-  const won = n => (n || 0).toLocaleString() + '원';
+  const won = n => wonText(n);
   const sum = document.getElementById('auditSummary'), list = document.getElementById('auditList');
   if (!sum || !list) return;
   if (!total) { sum.textContent = '기록된 지출이 아직 없어요.'; list.innerHTML = ''; return; }
@@ -5315,7 +5482,7 @@ function auditEditAmount(monthKey, id) {
   dbSet(monthKey, JSON.stringify(arr));
   syncLedgerIfCurrent(monthKey, arr);
   openLedgerAudit();
-  toast('금액을 ' + n.toLocaleString() + '원으로 수정했어요');
+  toast('금액을 ' + wonText(n) + '으로 수정했어요');
 }
 function auditDeleteEntry(monthKey, id) {
   if (!confirm('이 지출 기록을 삭제할까요?')) return;
@@ -5353,7 +5520,7 @@ async function execTool(name, args, originalText) {
     const desc = args.description || '지출';
     const cat = args.category || detectCategory(desc + ' ' + originalText);
     recordExpenseEntry(amt, desc, cat);
-    jarvisRespond(desc + ' ' + amt.toLocaleString() + '원 기록했어요.');
+    jarvisRespond(desc + ' ' + wonText(amt) + ' 기록했어요.');
     return;
   }
   if (name === 'generate_image') { jarvisGenerateImage(args.prompt || originalText); return; }
@@ -5705,7 +5872,7 @@ function handleSharedPayment(raw) {
   if (dashVal('sms_autosave') === '1' && p.confidence === 'high') {
     if (isDuplicateRecent(p.amt, p.merchant)) { toast('이미 기록된 결제 같아 건너뛰었어요'); return; }
     recordExpenseEntry(p.amt, p.merchant, cat, p.type);
-    toast((p.type === 'income' ? '↩ ' : '💳 ') + p.merchant + ' ' + p.amt.toLocaleString() + '원 자동 기록 (틀리면 가계부에서 수정)');
+    toast((p.type === 'income' ? '↩ ' : '💳 ') + p.merchant + ' ' + wonText(p.amt) + ' 자동 기록 (틀리면 가계부에서 수정)');
     return;
   }
   openShareModal(p.amt, p.merchant, cat, p.type, raw);
@@ -5733,12 +5900,12 @@ function saveSharedExpense() {
   if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear() === y && ledgerCurrent.getMonth() === m) { ledgerData = led; if (typeof renderLedger === 'function') renderLedger(); }
   if (typeof renderHome === 'function') renderHome();
   closeShareModal();
-  toast((type === 'income' ? '↩ ' : '💳 ') + desc + ' ' + amt.toLocaleString() + '원 기록했어요');
+  toast((type === 'income' ? '↩ ' : '💳 ') + desc + ' ' + wonText(amt) + ' 기록했어요');
 }
 function processVoice(text) {
   pushHistory('user', text);   // 대화 기억
   if (jarvisImageMode) { jarvisGenerateImage(text); return; }   // 🎨 이미지 모드: 말한 대로 그림 생성
-  const won = n => (n || 0).toLocaleString() + '원';
+  const won = n => wonText(n);
   const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
   const led = (function(){ try { return JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) { return []; } })();
   const todayStr = pad(m+1) + '/' + pad(now.getDate());
@@ -5776,7 +5943,7 @@ function processVoice(text) {
 
 // 로컬 데이터 즉답 — 칩 버튼용 + AI 키 없을 때 대비 (API 소모 없음)
 function localAnswer(text) {
-  const won = n => (n || 0).toLocaleString() + '원';
+  const won = n => wonText(n);
   const now = new Date(), y = now.getFullYear(), m = now.getMonth(), pad = x => String(x).padStart(2, '0');
   let led = []; try { led = JSON.parse(dashVal('ledger-'+y+'-'+m) || '[]'); } catch(e) {}
   const todayStr = pad(m+1) + '/' + pad(now.getDate());
@@ -5812,7 +5979,7 @@ function localAnswer(text) {
 
 // 무료 로컬 인사이트 — 데이터로 계산한 요약/조언 (API 불필요)
 function jarvisInsight() {
-  const won = n => (n||0).toLocaleString()+'원';
+  const won = n => wonText(n);
   const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
   let led=[]; try{led=JSON.parse(dashVal('ledger-'+y+'-'+m)||'[]');}catch(e){}
   const exp=led.filter(r=>r.type==='expense');
@@ -5838,7 +6005,7 @@ function jarvisInsight() {
   return parts.join(' ');
 }
 function jarvisGreeting() {
-  const won = n => (n||0).toLocaleString()+'원';
+  const won = n => wonText(n);
   const now = new Date(), y=now.getFullYear(), m=now.getMonth(), pad=x=>String(x).padStart(2,'0');
   const h = now.getHours();
   const hi = h<5?'늦은 밤이에요':h<11?'좋은 아침이에요':h<17?'좋은 오후예요':h<21?'좋은 저녁이에요':'오늘 하루 고생하셨어요';
