@@ -1119,6 +1119,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
             <div style="margin-top:5px;display:flex;flex-direction:column;gap:4px;">
               <div style="display:flex;gap:8px;">
                 <div><div style="font-size:9px;color:var(--muted);">수입</div><div id="monthlyIncomeBanner" style="font-size:11px;color:#4ade80;font-weight:600;">0원</div></div>
+                <div><div style="font-size:9px;color:var(--muted);">저축</div><div id="monthlySavingBanner" style="font-size:11px;color:#a78bfa;font-weight:600;">0원</div></div>
                 <div><div style="font-size:9px;color:var(--muted);">잔액</div><div id="monthlyBalanceBanner" style="font-size:11px;color:#fbbf24;font-weight:600;">0원</div></div>
               </div>
               <div><div style="font-size:9px;color:var(--muted);">예산잔여</div><div id="monthlyBudgetLeft" style="font-size:11px;color:#60a5fa;font-weight:600;">-</div></div>
@@ -1184,8 +1185,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 
       </div><!-- end 배너 grid -->
 
-      <!-- ② 요약 카드 4개 -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+      <!-- ② 요약 카드 5개 -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;">
         <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:12px;text-align:center;">
           <div style="font-size:10px;color:#4ade80;margin-bottom:5px;">💵 월 총수입</div>
           <div id="totalIncome" style="font-size:16px;font-weight:700;color:#4ade80;">0원</div>
@@ -1193,6 +1194,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div style="background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:12px;text-align:center;">
           <div style="font-size:10px;color:#f87171;margin-bottom:5px;">💸 월 총지출</div>
           <div id="totalExpense" style="font-size:16px;font-weight:700;color:#f87171;">0원</div>
+        </div>
+        <div style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:10px;color:#a78bfa;margin-bottom:5px;">🐷 월 저축</div>
+          <div id="totalSaving" style="font-size:16px;font-weight:700;color:#a78bfa;">0원</div>
         </div>
         <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:10px;padding:12px;text-align:center;">
           <div style="font-size:10px;color:#fbbf24;margin-bottom:5px;">🏦 월 잔액</div>
@@ -1217,6 +1222,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <select id="ledgerType" style="padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
           <option value="expense">💸 지출</option>
           <option value="income">💵 수입</option>
+          <option value="saving">🐷 저축</option>
         </select>
         <input type="text" id="ledgerDesc" placeholder="내용 (예: 점심식사, 교통비...)" style="padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
         <select id="ledgerCategory" style="padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
@@ -1399,6 +1405,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
               <select id="share_type" style="width:100%;padding:9px 12px;background:#0c1829;border:1px solid rgba(59,130,246,0.2);border-radius:8px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;">
                 <option value="expense">💸 지출</option>
                 <option value="income">↩ 환불/입금</option>
+                <option value="saving">🐷 저축</option>
               </select>
             </div>
           </div>
@@ -2717,10 +2724,11 @@ function renderLedger() {
       const items = groups[day];
       const dayExp = items.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amt,0);
       const dayInc = items.filter(r=>r.type==='income').reduce((s,r)=>s+r.amt,0);
+      const daySav = items.filter(r=>r.type==='saving').reduce((s,r)=>s+r.amt,0);
       return `
         <div style="padding:8px 14px 4px;background:rgba(59,130,246,0.04);border-bottom:1px solid rgba(59,130,246,0.08);display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;font-weight:700;color:var(--accent2);">📅 ${day}</span>
-          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(dayExp)}</b>${dayInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(dayInc)+'</b>':''}</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(dayExp)}</b>${dayInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(dayInc)+'</b>':''}${daySav>0?' · 저축 <b style="color:#a78bfa">-'+wonHtml(daySav)+'</b>':''}</span>
         </div>` +
         items.map(r => rowHtml(r)).join('');
     }).join('');
@@ -2737,12 +2745,13 @@ function renderLedger() {
       const items = groups[ws];
       const wExp = items.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amt,0);
       const wInc = items.filter(r=>r.type==='income').reduce((s,r)=>s+r.amt,0);
+      const wSav = items.filter(r=>r.type==='saving').reduce((s,r)=>s+r.amt,0);
       const wEnd = new Date(ws); wEnd.setDate(wEnd.getDate()+6);
       const label = ws.slice(5) + ' ~ ' + `${String(wEnd.getMonth()+1).padStart(2,'0')}-${String(wEnd.getDate()).padStart(2,'0')}`;
       return `
         <div style="padding:8px 14px 4px;background:rgba(139,92,246,0.06);border-bottom:1px solid rgba(139,92,246,0.12);display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;font-weight:700;color:#a78bfa;">📅 ${label}</span>
-          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(wExp)}</b>${wInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(wInc)+'</b>':''} · ${items.length}건</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(wExp)}</b>${wInc>0?' · 수입 <b style="color:#4ade80">+'+wonHtml(wInc)+'</b>':''}${wSav>0?' · 저축 <b style="color:#a78bfa">-'+wonHtml(wSav)+'</b>':''} · ${items.length}건</span>
         </div>` +
         items.map(r => rowHtml(r)).join('');
     }).join('');
@@ -2803,10 +2812,11 @@ function renderLedgerCalendar() {
   if (selectedCalDay == null && isThisMonth) selectedCalDay = todayD;
 
   // 일별 합계
-  const dayExp = {}, dayInc = {};
+  const dayExp = {}, dayInc = {}, daySav = {};
   ledgerData.forEach(r => {
     const d = ledgerDayOf(r); if (!d) return;
     if (r.type === 'income') dayInc[d] = (dayInc[d] || 0) + r.amt;
+    else if (r.type === 'saving') daySav[d] = (daySav[d] || 0) + r.amt;
     else dayExp[d] = (dayExp[d] || 0) + r.amt;
   });
 
@@ -2819,19 +2829,20 @@ function renderLedgerCalendar() {
   for (let i = 0; i < firstDow; i++) cells += '<div></div>';
   for (let d = 1; d <= daysInMonth; d++) {
     const dow = (firstDow + d - 1) % 7;
-    const exp = dayExp[d] || 0, inc = dayInc[d] || 0;
+    const exp = dayExp[d] || 0, inc = dayInc[d] || 0, sav = daySav[d] || 0;
     const isToday = d === todayD;
     const isSel = d === selectedCalDay;
-    const hasData = exp || inc;
+    const hasData = exp || inc || sav;
     const dowColor = dow === 0 ? '#f87171' : dow === 6 ? '#60a5fa' : 'rgba(255,255,255,0.82)';
     const border = isSel ? '2px solid var(--accent)' : isToday ? '1px solid rgba(251,191,36,0.6)' : '1px solid rgba(255,255,255,0.1)';
     const bg = isSel ? 'rgba(59,130,246,0.18)' : hasData ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.03)';
     const expLine = exp ? `<div style="font-size:9px;color:#f87171;font-weight:700;line-height:1.25;">-${manShort(exp)}</div>` : '';
     const incLine = inc ? `<div style="font-size:9px;color:#4ade80;font-weight:700;line-height:1.25;">+${manShort(inc)}</div>` : '';
+    const savLine = sav ? `<div style="font-size:9px;color:#a78bfa;font-weight:700;line-height:1.25;">저${manShort(sav)}</div>` : '';
     const noRecLine = !hasData ? `<div style="font-size:9px;color:rgba(255,255,255,0.28);font-weight:700;line-height:1.25;">·</div>` : ''; // 기록 없는 날 표시
     cells += `<div onclick="selectLedgerCalDay(${d})" style="cursor:pointer;min-height:52px;border:${border};border-radius:7px;background:${bg};padding:4px 2px;display:flex;flex-direction:column;align-items:center;gap:1px;overflow:hidden;">
       <div style="font-size:11px;font-weight:${isToday ? '800' : '600'};color:${isToday ? '#fbbf24' : dowColor};">${d}</div>
-      ${expLine}${incLine}${noRecLine}
+      ${expLine}${incLine}${savLine}${noRecLine}
     </div>`;
   }
   const grid = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">' + cells + '</div>';
@@ -2842,10 +2853,11 @@ function renderLedgerCalendar() {
     const items = ledgerData.filter(r => ledgerDayOf(r) === selectedCalDay);
     const e = items.filter(r => r.type === 'expense').reduce((s, r) => s + r.amt, 0);
     const inc = items.filter(r => r.type === 'income').reduce((s, r) => s + r.amt, 0);
+    const sav = items.filter(r => r.type === 'saving').reduce((s, r) => s + r.amt, 0);
     detail = `<div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(59,130,246,0.12);">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px 8px;flex-wrap:wrap;gap:4px;">
           <span style="font-size:13px;font-weight:700;color:var(--accent2);">📅 ${mo + 1}월 ${selectedCalDay}일</span>
-          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(e)}</b>${inc > 0 ? ' · 수입 <b style="color:#4ade80">+' + wonHtml(inc) + '</b>' : ''} · ${items.length}건</span>
+          <span style="font-size:11px;color:var(--muted);">지출 <b style="color:#f87171">${wonHtml(e)}</b>${inc > 0 ? ' · 수입 <b style="color:#4ade80">+' + wonHtml(inc) + '</b>' : ''}${sav > 0 ? ' · 저축 <b style="color:#a78bfa">-' + wonHtml(sav) + '</b>' : ''} · ${items.length}건</span>
         </div>`
       + (items.length ? items.map(r => rowHtml(r)).join('') : '<div style="padding:18px;text-align:center;color:var(--muted);font-size:12px;">이 날은 기록이 없어요.</div>')
       + '</div>';
@@ -2861,14 +2873,14 @@ function rowHtml(r) {
   const catOpts = cats.map(c => `<option${c===r.cat?' selected':''}>${c}</option>`).join('');
   return `<div id="ledger-row-${r.id}" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 80px;padding:9px 14px;border-bottom:1px solid rgba(59,130,246,0.05);align-items:center;font-size:13px;">
     <span style="color:var(--muted);font-size:11px;">${r.date}</span>
-    <span style="font-size:11px;color:${r.type==='income'?'#4ade80':'#f87171'}">${r.type==='income'?'💵 수입':'💸 지출'}</span>
+    <span style="font-size:11px;color:${r.type==='income'?'#4ade80':r.type==='saving'?'#a78bfa':'#f87171'}">${r.type==='income'?'💵 수입':r.type==='saving'?'🐷 저축':'💸 지출'}</span>
     <span id="ledger-desc-${r.id}" onclick="editLedgerField(${r.id},'desc')" style="cursor:pointer;" title="클릭하여 수정">${(typeof escHtml==='function'?escHtml(r.desc||''):(r.desc||''))}</span>
     <span id="ledger-cat-${r.id}">
       <select onchange="editLedgerCat(${r.id},this.value)" style="background:transparent;border:none;color:var(--muted);font-size:12px;cursor:pointer;width:100%;">
         ${catOpts}
       </select>
     </span>
-    <span id="ledger-amt-${r.id}" onclick="editLedgerField(${r.id},'amt')" style="text-align:right;font-weight:600;color:${r.type==='income'?'#4ade80':'#f87171'};cursor:pointer;" title="클릭하여 수정">${r.type==='income'?'+':'-'}${wonHtml(r.amt)}</span>
+    <span id="ledger-amt-${r.id}" onclick="editLedgerField(${r.id},'amt')" style="text-align:right;font-weight:600;color:${r.type==='income'?'#4ade80':r.type==='saving'?'#a78bfa':'#f87171'};cursor:pointer;" title="클릭하여 수정">${r.type==='income'?'+':'-'}${wonHtml(r.amt)}</span>
     <span style="text-align:center;display:flex;gap:3px;justify-content:center;">
       <button onclick="editLedgerRow(${r.id})" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;">✏</button>
       <button onclick="deleteLedgerRow(${r.id})" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;">×</button>
@@ -2923,6 +2935,7 @@ function editLedgerRow(id) {
           <select id="edit-type" style="width:100%;padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:white;border-radius:6px;">
             <option value="expense"${row.type==='expense'?' selected':''}>💸 지출</option>
             <option value="income"${row.type==='income'?' selected':''}>💵 수입</option>
+            <option value="saving"${row.type==='saving'?' selected':''}>🐷 저축</option>
           </select>
         </div>
         <div>
@@ -2963,20 +2976,23 @@ function editLedgerRow(id) {
 function updateSummary() {
   const income  = ledgerData.filter(r=>r.type==='income').reduce((s,r)=>s+r.amt,0);
   const expense = ledgerData.filter(r=>r.type==='expense').reduce((s,r)=>s+r.amt,0);
-  const balance = income - expense;
+  const saving  = ledgerData.filter(r=>r.type==='saving').reduce((s,r)=>s+r.amt,0);
+  const balance = income - expense - saving;  // 저축도 통장에서 빠지므로 잔액에서 차감
   const budget  = parseInt(document.getElementById('budgetInput')?.value||0)||0;
-  const left    = budget - expense;
+  const left    = budget - expense;           // 예산은 소비(지출) 기준 — 저축 제외
   const fmt = n => n.toLocaleString()+'원';
   const el = id => document.getElementById(id);
 
   if(el('totalIncome'))    el('totalIncome').innerHTML = wonHtml(income);
   if(el('totalExpense'))   el('totalExpense').innerHTML = wonHtml(expense);
+  if(el('totalSaving'))    el('totalSaving').innerHTML = wonHtml(saving);
   if(el('totalBalance'))   { el('totalBalance').innerHTML=wonHtml(balance); el('totalBalance').style.color=balance>=0?'#fbbf24':'#f87171'; }
   if(el('totalBudgetLeft')){ el('totalBudgetLeft').innerHTML=budget?wonHtml(left):'-'; el('totalBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
 
   // 월간 배너
   if(el('monthlyExpenseBanner'))  el('monthlyExpenseBanner').innerHTML = wonHtml(expense);
   if(el('monthlyIncomeBanner'))   el('monthlyIncomeBanner').innerHTML = wonHtml(income);
+  if(el('monthlySavingBanner'))   el('monthlySavingBanner').innerHTML = wonHtml(saving);
   if(el('monthlyBalanceBanner'))  { el('monthlyBalanceBanner').innerHTML=wonHtml(balance); el('monthlyBalanceBanner').style.color=balance>=0?'#fbbf24':'#f87171'; }
   if(el('monthlyBudgetLeft'))     { el('monthlyBudgetLeft').innerHTML=budget?wonHtml(left):'-'; el('monthlyBudgetLeft').style.color=left>=0?'#60a5fa':'#f87171'; }
 
@@ -5841,7 +5857,8 @@ function parsePaymentSMS(raw) {
   if (!text) return null;
   const isCancel = /(취소|환불|승인취소)/.test(text);
   const isDeposit = /(입금)/.test(text) && !/(출금|승인|결제)/.test(text);
-  const type = (isCancel || isDeposit) ? 'income' : 'expense';
+  const isSaving = /(증권|적금|펀드|ISA|CMA|연금|IRP|저축)/.test(text);   // 증권·적금 등 이체는 저축성
+  const type = (isCancel || isDeposit) ? 'income' : (isSaving ? 'saving' : 'expense');
   // 금액 후보: 'NN,NNN원' 중 잔액/한도/포인트/누적/합계 앞수식은 제외 → 첫 번째를 승인액으로
   const amts = []; const re = /([\d,]{2,})\s*원/g; let m;
   while ((m = re.exec(text))) {
@@ -5895,7 +5912,8 @@ function setSmsAutoSave(on) { dbSet('sms_autosave', on ? '1' : ''); toast(on ? '
 function handleSharedPayment(raw) {
   const p = parsePaymentSMS(raw);
   if (!p) { openShareModal('', '', '💳 기타', 'expense', raw); toast('금액을 자동으로 못 읽었어요. 직접 입력해 주세요.'); return; }
-  const cat = detectCategory(p.merchant + ' ' + raw);
+  let cat = detectCategory(p.merchant + ' ' + raw);
+  if (p.type === 'saving') cat = '💰 저축';
   // 자동 저장 ON + 신뢰도 높음 → 확인 없이 바로 기록 (중복은 건너뜀)
   if (dashVal('sms_autosave') === '1' && p.confidence === 'high') {
     if (isDuplicateRecent(p.amt, p.merchant)) { toast('이미 기록된 결제 같아 건너뛰었어요'); return; }
