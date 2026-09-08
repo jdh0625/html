@@ -5856,21 +5856,31 @@ function parsePaymentSMS(raw) {
   const hasAction = /(승인|결제|출금|이체|입금|사용)/.test(text);
   const confidence = (hasIssuer && hasAction) ? 'high' : 'low';
   // 가맹점: 카드사·은행명·키워드·금액·날짜/시간·이름 제거 후 남는 꼬리 부분
-  let merchant = text
-    .replace(/\[?\s*web발신\s*\]?/gi, ' ')
-    .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/[\d,]+\s*원/g, ' ')
-    .replace(/(현대|신한|삼성|국민|KB국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK기업|IBK|기업|SC제일|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
-    .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용|누계액)/g, ' ')
-    .replace(/\d{1,4}[.\-\/]\d{1,2}([.\-\/]\d{1,4})?/g, ' ')   // 날짜(06/20 또는 2026-06-20)
-    .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ')                    // 시간
-    .replace(/\S*님/g, ' ')                                     // 이름(홍길동님) 제거
-    .replace(/(오전|오후)/g, ' ')
-    .replace(/[()*·|\/\-]/g, ' ')
-    .replace(/\d+/g, ' ')
-    .replace(/\s+/g, ' ').trim();
-  const parts = merchant.split(' ').filter(w => w.length >= 1);
-  merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
+  let merchant = '';
+  // KB국민(스타뱅킹) 형식 전용: "…계좌(**-***…) 가맹점 (체크카드|오픈뱅킹|…)?(출금|결제|승인|입금) 금액 잔액…"
+  // 계좌 마스킹(**) 뒤 ~ 거래유형어 앞을 가맹점으로 뽑아 상호(예: 지에스25)의 숫자까지 보존
+  if (/잔액/.test(text)) {
+    const kbM = text.match(/\*{2,}[-\d*]*\s+([가-힣A-Za-z0-9().]+(?:\s+[가-힣A-Za-z0-9().]+)*?)\s*(?:체크카드|신용카드|카드|오픈뱅킹|자동이체|펌뱅킹|이체)?(?:출금|결제|승인|입금)/);
+    if (kbM && kbM[1] && kbM[1].length <= 24 && !/잔액|님/.test(kbM[1])) merchant = kbM[1].replace(/\s+/g, ' ').trim();
+  }
+  if (!merchant) {
+    merchant = text
+      .replace(/\[?\s*web발신\s*\]?/gi, ' ')
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/[\d,]+\s*원/g, ' ')
+      .replace(/(현대|신한|삼성|국민|KB국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK기업|IBK|기업|SC제일|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
+      .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용|누계액)/g, ' ')
+      .replace(/\d{1,4}[.\-\/]\d{1,2}([.\-\/]\d{1,4})?/g, ' ')   // 날짜(06/20 또는 2026-06-20)
+      .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ')                    // 시간
+      .replace(/\S*님/g, ' ')                                     // 이름(홍길동님) 제거
+      .replace(/(오전|오후)/g, ' ')
+      .replace(/[()*·|\/\-]/g, ' ')
+      .replace(/[,]/g, ' ')                                       // 잔액 숫자 제거 후 남는 콤마 정리
+      .replace(/\d+/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+    const parts = merchant.split(' ').filter(w => w.length >= 1);
+    merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
+  }
   if (!merchant) merchant = (type === 'income' ? '입금' : (/(출금|이체)/.test(text) ? '출금' : '카드결제'));
   return { amt: amts[0], merchant, isCancel, type, confidence };
 }
