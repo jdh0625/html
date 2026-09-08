@@ -444,6 +444,19 @@ input[type=checkbox] { accent-color:var(--accent); }
     gap: 6px;
   }
 
+  /* 가계부 헤더: 모바일 세로 스택 (제목줄 / 예산·점검줄) */
+  #ledgerView > div:nth-child(1) { flex-direction: column; align-items: stretch; gap: 10px; }
+  #ledgerView > div:nth-child(1) > div { justify-content: space-between; flex-wrap: wrap; }
+  #budgetInput { width: 100px !important; }
+
+  /* 요약 카드 숫자 살짝 축소(5칸 병기 오버플로 방지) */
+  #ledgerView > div:nth-child(4) [id^="total"] { font-size: 14px !important; }
+
+  /* 내역 줄/헤더: 6열 → 4열(날짜·내용·금액·관리), 구분·카테고리 열은 숨김(금액 색으로 구분) */
+  #ledgerListHeader, .lrow { grid-template-columns: 46px 1fr auto auto !important; gap: 6px !important; }
+  #ledgerListHeader > :nth-child(2), .lrow > :nth-child(2),
+  #ledgerListHeader > :nth-child(4), .lrow > :nth-child(4) { display: none !important; }
+
   /* h1 작게 */
   h1 { font-size: 14px !important; letter-spacing: 2px !important; }
 
@@ -2871,7 +2884,7 @@ function renderLedgerCalendar() {
 function rowHtml(r) {
   const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','📦 기타'];
   const catOpts = cats.map(c => `<option${c===r.cat?' selected':''}>${c}</option>`).join('');
-  return `<div id="ledger-row-${r.id}" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 80px;padding:9px 14px;border-bottom:1px solid rgba(59,130,246,0.05);align-items:center;font-size:13px;">
+  return `<div id="ledger-row-${r.id}" class="lrow" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 80px;padding:9px 14px;border-bottom:1px solid rgba(59,130,246,0.05);align-items:center;font-size:13px;">
     <span style="color:var(--muted);font-size:11px;">${r.date}</span>
     <span style="font-size:11px;color:${r.type==='income'?'#4ade80':r.type==='saving'?'#a78bfa':'#f87171'}">${r.type==='income'?'💵 수입':r.type==='saving'?'🐷 저축':'💸 지출'}</span>
     <span id="ledger-desc-${r.id}" onclick="editLedgerField(${r.id},'desc')" style="cursor:pointer;" title="클릭하여 수정">${(typeof escHtml==='function'?escHtml(r.desc||''):(r.desc||''))}</span>
@@ -4629,7 +4642,7 @@ function wonKor(n) {
 function wonHtml(n) {
   const exact = (Number(n) || 0).toLocaleString() + '원';
   const kor = wonKor(n);
-  return kor ? exact + '<span style="font-size:0.82em;color:var(--muted);font-weight:400;margin-left:5px;white-space:nowrap;">' + kor + '</span>' : exact;
+  return kor ? exact + '<span style="font-size:0.82em;color:var(--muted);font-weight:400;margin-left:5px;">' + kor + '</span>' : exact;
 }
 // 텍스트 병기용 (토스트·AI 답변 등 innerHTML 아닌 곳): "1,234,567원 (약 123만원)"
 function wonText(n) {
