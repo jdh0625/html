@@ -455,6 +455,13 @@ input[type=checkbox] { accent-color:var(--accent); }
   /* 이번 달 지출 + 예산목표 반반 → 모바일에서 세로 1열(숫자 깨짐 방지) */
   .lbanner-half { grid-template-columns: 1fr !important; }
 
+  /* 촘촘하게: 한 화면에 최대한 담기 (여백·패딩 축소 + 전체 살짝 축소) */
+  #ledgerView { zoom: 0.92; }
+  #ledgerView > div { margin-bottom: 10px !important; }
+  #ledgerView [style*="padding:14px 16px"] { padding: 10px 12px !important; }
+  #ledgerView [style*="padding:12px"] { padding: 8px !important; }
+  #ledgerView [style*="margin-bottom:16px"] { margin-bottom: 10px !important; }
+
   /* 내역 줄/헤더: 6열 → 4열(날짜·내용·금액·관리), 구분·카테고리 열은 숨김(금액 색으로 구분) */
   #ledgerListHeader, .lrow { grid-template-columns: 46px 1fr auto auto !important; gap: 6px !important; }
   #ledgerListHeader > :nth-child(2), .lrow > :nth-child(2),
@@ -2806,6 +2813,7 @@ function selectLedgerCalDay(d) {
 function bumpLedgerFonts() {
   const root = document.getElementById('ledgerView');
   if (!root) return;
+  if (window.innerWidth <= 768) return; // 모바일은 확대 안 함(compact 우선, 한 화면에 담기)
   root.querySelectorAll('*').forEach(node => {
     if (node.getAttribute('data-fz-bumped')) return;
     const fs = node.style && node.style.fontSize;
