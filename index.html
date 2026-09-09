@@ -2,6 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<!-- 보안: base-tag 하이재킹·플러그인(object/embed) 주입 차단 (스크립트·통신엔 영향 없음) -->
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
