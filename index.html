@@ -5874,6 +5874,24 @@ function detectCategory(text) {
   return '💳 기타';
 }
 
+// ── 환율(USD→KRW): 해외 결제 자동 환산용. 무료 Frankfurter API로 12시간 캐시 ──
+function getUsdKrw() {
+  try { const c = JSON.parse(localStorage.getItem('fx_usd_krw') || 'null'); if (c && c.rate) return c.rate; } catch (e) {}
+  return 1380; // 캐시 없을 때 폴백(대략)
+}
+async function refreshUsdKrw() {
+  try {
+    const c = JSON.parse(localStorage.getItem('fx_usd_krw') || 'null');
+    if (c && c.rate && (Date.now() - (c.ts || 0)) < 12 * 3600 * 1000) return c.rate;
+    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+    const j = await res.json();
+    const rate = j && j.rates && j.rates.KRW;
+    if (rate) { localStorage.setItem('fx_usd_krw', JSON.stringify({ rate, ts: Date.now() })); return rate; }
+  } catch (e) {}
+  return getUsdKrw();
+}
+try { refreshUsdKrw(); } catch (e) {}  // 앱 로드 시 환율 캐시 워밍
+
 // ── 결제 문자 공유 → 지출 자동 기록 (Web Share Target) ──
 // 카드사 승인 문자에서 금액·가맹점을 최대한 뽑아내되, 저장 전 사용자 확인을 받는다(오파싱 방지).
 function parsePaymentSMS(raw) {
@@ -5891,7 +5909,21 @@ function parsePaymentSMS(raw) {
     const n = parseInt(m[1].replace(/,/g, ''), 10);
     if (n > 0) amts.push(n);
   }
-  if (!amts.length) return null;
+  let amt = amts.length ? amts[0] : 0;
+  let foreign = null;
+  if (!amt) {
+    // 해외 결제(원화 미표시): USD 금액을 환율로 환산해 자동기록
+    const fxm = text.match(/(?:USD|US\$|\$)\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(?:USD|달러|불)/i);
+    if (fxm) {
+      const usd = parseFloat((fxm[1] || fxm[2] || '').replace(/,/g, ''));
+      if (usd > 0) {
+        const rate = getUsdKrw();
+        amt = Math.round(usd * rate);
+        foreign = { cur: 'USD', amt: usd, rate: Math.round(rate), krw: amt };
+      }
+    }
+  }
+  if (!amt) return null;
   // 발급사(현대카드·국민은행 등) + 결제행위 여부로 신뢰도 판단
   const hasIssuer = /(현대|국민|KB|신한|삼성|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오|토스|케이뱅크|IBK|기업|SC|카드|은행)/i.test(text);
   const hasAction = /(승인|결제|출금|이체|입금|사용)/.test(text);
@@ -5909,11 +5941,13 @@ function parsePaymentSMS(raw) {
       .replace(/\[?\s*web발신\s*\]?/gi, ' ')
       .replace(/\[[^\]]*\]/g, ' ')
       .replace(/[\d,]+\s*원/g, ' ')
+      .replace(/(?:USD|US\$|\$)\s*[\d,.]+/gi, ' ')                 // 해외 USD 금액 제거
+      .replace(/[\d,.]+\s*(?:USD|달러|불)/gi, ' ')
       .replace(/(현대|신한|삼성|국민|KB국민|KB|롯데|하나|우리|농협|NH|비씨|BC|씨티|카카오뱅크|카카오|토스|케이뱅크|IBK기업|IBK|기업|SC제일|SC)\s*(체크카드|신용카드|체크|카드|은행)?/gi, ' ')
-      .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|잔액|한도|누적|포인트|적립|합계|누계|가용|사용|누계액)/g, ' ')
+      .replace(/(일시불|할부|승인취소|승인|취소|환불|결제|출금|입금|이체|해외|국내|잔액|한도|누적|포인트|적립|합계|누계|가용|사용|누계액)/g, ' ')
       .replace(/\d{1,4}[.\-\/]\d{1,2}([.\-\/]\d{1,4})?/g, ' ')   // 날짜(06/20 또는 2026-06-20)
       .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ')                    // 시간
-      .replace(/\S*님/g, ' ')                                     // 이름(홍길동님) 제거
+      .replace(/\S+\s*님/g, ' ')                                  // 이름(홍길동님/정다훈 님) 제거
       .replace(/(오전|오후)/g, ' ')
       .replace(/[()*·|\/\-]/g, ' ')
       .replace(/[,]/g, ' ')                                       // 잔액 숫자 제거 후 남는 콤마 정리
@@ -5923,7 +5957,7 @@ function parsePaymentSMS(raw) {
     merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
   }
   if (!merchant) merchant = (type === 'income' ? '입금' : (/(출금|이체)/.test(text) ? '출금' : '카드결제'));
-  return { amt: amts[0], merchant, isCancel, type, confidence };
+  return { amt, merchant, isCancel, type, confidence, foreign };
 }
 // 최근 3분내 같은 금액·유사 내용 기록이 있으면 중복으로 간주 (문자 두 번 공유 방지)
 function isDuplicateRecent(amt, desc) {
@@ -5934,18 +5968,22 @@ function isDuplicateRecent(amt, desc) {
 }
 function setSmsAutoSave(on) { dbSet('sms_autosave', on ? '1' : ''); toast(on ? '앞으로 결제문자는 확인 없이 자동 저장해요' : '자동 저장을 껐어요'); }
 function handleSharedPayment(raw) {
+  try { refreshUsdKrw(); } catch (e) {}   // 환율 최신화(다음 건 대비)
   const p = parsePaymentSMS(raw);
   if (!p) { openShareModal('', '', '💳 기타', 'expense', raw); toast('금액을 자동으로 못 읽었어요. 직접 입력해 주세요.'); return; }
   let cat = detectCategory(p.merchant + ' ' + raw);
   if (p.type === 'saving') cat = '💰 저축';
+  // 해외 결제(USD 등): 환산 원화로 기록하되 내용에 원문 통화 병기
+  const desc = p.foreign ? (p.merchant + ' (USD ' + p.foreign.amt + ' · 약 ' + p.foreign.krw.toLocaleString() + '원)') : p.merchant;
   // 자동 저장 ON + 신뢰도 높음 → 확인 없이 바로 기록 (중복은 건너뜀)
   if (dashVal('sms_autosave') === '1' && p.confidence === 'high') {
-    if (isDuplicateRecent(p.amt, p.merchant)) { toast('이미 기록된 결제 같아 건너뛰었어요'); return; }
-    recordExpenseEntry(p.amt, p.merchant, cat, p.type);
-    toast((p.type === 'income' ? '↩ ' : '💳 ') + p.merchant + ' ' + wonText(p.amt) + ' 자동 기록 (틀리면 가계부에서 수정)');
+    if (isDuplicateRecent(p.amt, desc)) { toast('이미 기록된 결제 같아 건너뛰었어요'); return; }
+    recordExpenseEntry(p.amt, desc, cat, p.type);
+    const note = p.foreign ? (' 자동 환산 기록 (USD ' + p.foreign.amt + '·환율 ' + p.foreign.rate + ', 실청구액은 다를 수 있어요)') : ' 자동 기록 (틀리면 가계부에서 수정)';
+    toast((p.type === 'income' ? '↩ ' : '💳 ') + desc + note);
     return;
   }
-  openShareModal(p.amt, p.merchant, cat, p.type, raw);
+  openShareModal(p.amt, desc, cat, p.type, raw);
 }
 function openShareModal(amt, desc, cat, type, raw) {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
