@@ -5954,7 +5954,7 @@ function parsePaymentSMS(raw) {
       .replace(/\d+/g, ' ')
       .replace(/\s+/g, ' ').trim();
     const parts = merchant.split(' ').filter(w => w.length >= 1);
-    merchant = (parts.length > 3 ? parts.slice(-3) : parts).join(' ').trim();
+    merchant = (parts.length > 4 ? parts.slice(-4) : parts).join(' ').trim();  // 상호(출처) 최대한 보존
   }
   if (!merchant) merchant = (type === 'income' ? '입금' : (/(출금|이체)/.test(text) ? '출금' : '카드결제'));
   return { amt, merchant, isCancel, type, confidence, foreign };
