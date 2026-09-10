@@ -1094,6 +1094,18 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
       <!-- ① 상단 배너: 주간 / 월간(반) + 예산목표(반) -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
 
+        <!-- 🔁 월 고정 지출 (가계부 메인 고정 · 홈과 동일 데이터) -->
+        <div style="grid-column:1/-1;background:linear-gradient(135deg,rgba(251,146,60,0.12),rgba(249,115,22,0.06));border:1px solid rgba(251,146,60,0.28);border-radius:12px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="min-width:0;">
+            <div style="font-size:10px;color:#fb923c;letter-spacing:1px;margin-bottom:3px;">🔁 이번 달 고정 지출</div>
+            <div id="ledgerFixedList" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex:none;">
+            <div id="ledgerFixedTotal" style="font-size:20px;font-weight:800;color:#fb923c;white-space:nowrap;">0원</div>
+            <button onclick="openFixedModal()" style="background:rgba(251,146,60,0.15);border:1px solid rgba(251,146,60,0.4);color:#fdba74;border-radius:7px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;">＋ 관리</button>
+          </div>
+        </div>
+
         <!-- 주간 지출 -->
         <div style="background:linear-gradient(135deg,rgba(139,92,246,0.12),rgba(59,130,246,0.08));border:1px solid rgba(139,92,246,0.25);border-radius:12px;padding:14px 16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -3129,6 +3141,7 @@ function updateSummary() {
     if(el('weeklyAvg'))     el('weeklyAvg').textContent   = wonFmt(Math.round(wExp / wDays));
   }
   updateLedgerStartBanner();
+  renderLedgerFixed();   // 월 고정 지출 카드 (가계부 메인 고정)
   updateTodayBudget();
 }
 
@@ -5035,6 +5048,19 @@ function renderFixedCard() {
   if (l) l.innerHTML = arr.length
     ? arr.map(f => `${escHtml(f.name)} <b>${wonFmt(f.amt)}</b>`).join(' · ')
     : '<span class="dash-empty">＋ 관리에서 월세·구독료 등을 등록해 보세요</span>';
+  renderLedgerFixed();   // 가계부 메인 고정카드도 함께 갱신
+}
+// 가계부 메인 상단의 '월 고정 지출' 카드 갱신 (홈과 동일 데이터)
+function renderLedgerFixed() {
+  const t = document.getElementById('ledgerFixedTotal');
+  if (t) t.innerHTML = wonHtml(fixedTotal());
+  const l = document.getElementById('ledgerFixedList');
+  if (l) {
+    const arr = getFixed();
+    l.innerHTML = arr.length
+      ? arr.map(f => `${escHtml(f.name)} <b style="color:#fdba74">${wonFmt(f.amt)}</b>`).join(' · ')
+      : '<span style="opacity:.7;">＋ 관리에서 월세·구독료 등을 등록</span>';
+  }
 }
 function openFixedModal() { renderFxList(); document.getElementById('fixedModal').classList.add('open'); if (typeof closeMenu === 'function') closeMenu(); }
 function closeFixedModal() { document.getElementById('fixedModal').classList.remove('open'); }
