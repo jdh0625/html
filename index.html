@@ -5143,9 +5143,31 @@ function renderPfList() {
   const arr = getPortfolio().slice().sort((a,b) => (b.amt||0) - (a.amt||0));
   const total = arr.reduce((s,h) => s + (h.amt||0), 0);
   box.innerHTML = arr.length
-    ? arr.map(h => `<div class="view-order-item"><span class="vo-name">${escHtml(h.name)}</span><span style="font-variant-numeric:tabular-nums;margin-right:6px;">${wonFmt(h.amt)}</span><button onclick="deletePortfolioItem(${h.id})" title="삭제">🗑</button></div>`).join('')
+    ? arr.map(h => `<div class="view-order-item" id="pf-row-${h.id}"><span class="vo-name">${escHtml(h.name)}</span><span style="font-variant-numeric:tabular-nums;margin-right:6px;">${wonFmt(h.amt)}</span><button onclick="editPortfolioItem(${h.id})" title="수정">✏</button><button onclick="deletePortfolioItem(${h.id})" title="삭제">🗑</button></div>`).join('')
       + `<div class="dash-hint" style="margin-top:10px;">총 자산: <b>${wonFmt(total)}</b></div>`
     : '<div class="dash-empty">아직 등록된 자산이 없어요.</div>';
+}
+// 자산 항목 인라인 수정 (이름·평가금액)
+function editPortfolioItem(id) {
+  const h = getPortfolio().find(x => x.id === id);
+  const row = document.getElementById('pf-row-' + id);
+  if (!h || !row) return;
+  row.innerHTML = `<input id="pfe-n-${id}" value="${escHtml(h.name)}" style="flex:1;min-width:70px;" />`
+    + `<input id="pfe-a-${id}" type="number" inputmode="numeric" value="${h.amt}" style="width:100px;" onkeydown="if(event.key==='Enter')savePortfolioEdit(${id});if(event.key==='Escape')renderPfList();" />`
+    + `<button onclick="savePortfolioEdit(${id})" title="저장">✓</button>`
+    + `<button onclick="renderPfList()" title="취소">✕</button>`;
+  const a = document.getElementById('pfe-a-' + id); if (a) { a.focus(); a.select(); }
+}
+function savePortfolioEdit(id) {
+  const arr = getPortfolio();
+  const h = arr.find(x => x.id === id);
+  if (!h) return;
+  const name = (document.getElementById('pfe-n-' + id) || {}).value;
+  const amt = parseInt((document.getElementById('pfe-a-' + id) || {}).value, 10);
+  if (!name || !name.trim()) { toast('자산명을 입력하세요'); return; }
+  if (!amt || amt <= 0) { toast('금액을 확인해 주세요'); return; }
+  h.name = name.trim(); h.amt = amt;
+  savePortfolio(arr); renderPfList(); renderPortfolio(); toast('수정했어요 ✅');
 }
 function addPortfolioItem() {
   const n = document.getElementById('pfName'), a = document.getElementById('pfAmt');
