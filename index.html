@@ -1913,6 +1913,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <input type="number" id="fxAmt" inputmode="numeric" placeholder="금액" style="width:110px;" onkeydown="if(event.key==='Enter')addFixed()" />
         <button onclick="addFixed()">추가</button>
       </div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+        <span style="font-size:11px;color:var(--muted);">정렬</span>
+        <button onclick="cycleFxSort()" id="fxSortBtn" class="set-btn" style="padding:5px 12px;font-size:12px;">등록순</button>
+      </div>
       <div id="fxList"></div>
     </div>
   </div>
@@ -5065,13 +5069,44 @@ function renderLedgerFixed() {
 }
 function openFixedModal() { renderFxList(); document.getElementById('fixedModal').classList.add('open'); if (typeof closeMenu === 'function') closeMenu(); }
 function closeFixedModal() { document.getElementById('fixedModal').classList.remove('open'); }
+let fxSort = 'none'; // none(등록순) | asc | desc
+function cycleFxSort() {
+  fxSort = fxSort === 'none' ? 'asc' : (fxSort === 'asc' ? 'desc' : 'none');
+  const b = document.getElementById('fxSortBtn');
+  if (b) b.textContent = fxSort === 'asc' ? '금액 오름차순 ↑' : (fxSort === 'desc' ? '금액 내림차순 ↓' : '등록순');
+  renderFxList();
+}
 function renderFxList() {
   const box = document.getElementById('fxList'); if (!box) return;
-  const arr = getFixed();
+  let arr = getFixed();
+  if (fxSort === 'asc') arr = arr.slice().sort((a,b) => (a.amt||0) - (b.amt||0));
+  else if (fxSort === 'desc') arr = arr.slice().sort((a,b) => (b.amt||0) - (a.amt||0));
   box.innerHTML = arr.length
-    ? arr.map(f => `<div class="view-order-item"><span class="vo-name">${escHtml(f.name)}</span><span style="font-variant-numeric:tabular-nums;margin-right:6px;">${wonFmt(f.amt)}</span><button onclick="deleteFixed(${f.id})" title="삭제">🗑</button></div>`).join('')
+    ? arr.map(f => `<div class="view-order-item" id="fx-row-${f.id}"><span class="vo-name">${escHtml(f.name)}</span><span style="font-variant-numeric:tabular-nums;margin-right:6px;">${wonFmt(f.amt)}</span><button onclick="editFixed(${f.id})" title="수정">✏</button><button onclick="deleteFixed(${f.id})" title="삭제">🗑</button></div>`).join('')
       + `<div class="dash-hint" style="margin-top:10px;">합계: <b>${wonFmt(fixedTotal())}</b></div>`
     : '<div class="dash-empty">아직 등록된 고정 지출이 없어요.</div>';
+}
+// 고정 지출 항목 인라인 수정 (이름·금액)
+function editFixed(id) {
+  const f = getFixed().find(x => x.id === id);
+  const row = document.getElementById('fx-row-' + id);
+  if (!f || !row) return;
+  row.innerHTML = `<input id="fxe-n-${id}" value="${escHtml(f.name)}" style="flex:1;min-width:70px;" />`
+    + `<input id="fxe-a-${id}" type="number" inputmode="numeric" value="${f.amt}" style="width:100px;" onkeydown="if(event.key==='Enter')saveFixedEdit(${id});if(event.key==='Escape')renderFxList();" />`
+    + `<button onclick="saveFixedEdit(${id})" title="저장">✓</button>`
+    + `<button onclick="renderFxList()" title="취소">✕</button>`;
+  const a = document.getElementById('fxe-a-' + id); if (a) { a.focus(); a.select(); }
+}
+function saveFixedEdit(id) {
+  const arr = getFixed();
+  const f = arr.find(x => x.id === id);
+  if (!f) return;
+  const name = (document.getElementById('fxe-n-' + id) || {}).value;
+  const amt = parseInt((document.getElementById('fxe-a-' + id) || {}).value, 10);
+  if (!name || !name.trim()) { toast('항목 이름을 입력하세요'); return; }
+  if (!amt || amt <= 0) { toast('금액을 확인해 주세요'); return; }
+  f.name = name.trim(); f.amt = amt;
+  saveFixed(arr); renderFxList(); renderHome(); toast('수정했어요 ✅');
 }
 function addFixed() {
   const n = document.getElementById('fxName'), a = document.getElementById('fxAmt');
