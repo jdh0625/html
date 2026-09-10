@@ -5971,11 +5971,24 @@ async function refreshUsdKrw() {
   try {
     const c = JSON.parse(localStorage.getItem('fx_usd_krw') || 'null');
     if (c && c.rate && (Date.now() - (c.ts || 0)) < 12 * 3600 * 1000) return c.rate;
-    const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
-    const j = await res.json();
-    const rate = j && j.rates && j.rates.KRW;
-    if (rate) { localStorage.setItem('fx_usd_krw', JSON.stringify({ rate, ts: Date.now() })); return rate; }
   } catch (e) {}
+  // CORS 허용 소스 순차 시도 (frankfurter.app는 도메인 이전으로 CORS 차단됨)
+  const sources = [
+    ['https://open.er-api.com/v6/latest/USD', j => j && j.rates && j.rates.KRW],
+    ['https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json', j => j && j.usd && j.usd.krw],
+    ['https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW', j => j && j.rates && j.rates.KRW]
+  ];
+  for (const [url, pick] of sources) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const rate = pick(await res.json());
+      if (rate && rate > 0) {
+        localStorage.setItem('fx_usd_krw', JSON.stringify({ rate: Math.round(rate), ts: Date.now() }));
+        return rate;
+      }
+    } catch (e) {}
+  }
   return getUsdKrw();
 }
 try { refreshUsdKrw(); } catch (e) {}  // 앱 로드 시 환율 캐시 워밍
