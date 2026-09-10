@@ -431,14 +431,15 @@ input[type=checkbox] { accent-color:var(--accent); }
     margin: 0 auto;
   }
 
-  /* 가계부 배너 세로 (시작배너 삽입으로 nth-child +1) */
+  /* 가계부 배너 세로 (minmax(0,1fr): 컬럼이 화면 밖으로 넘지 않게) */
   #ledgerView > div:nth-child(3) {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   /* 요약 카드 2열 */
   #ledgerView > div:nth-child(4) {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr) !important;
+    gap: 7px !important;
   }
 
   /* 가계부 입력 줄 */
@@ -448,22 +449,22 @@ input[type=checkbox] { accent-color:var(--accent); }
   }
 
   /* 가계부 헤더: 모바일 세로 스택 (제목줄 / 예산·점검줄) */
-  #ledgerView > div:nth-child(1) { flex-direction: column; align-items: stretch; gap: 10px; }
+  #ledgerView > div:nth-child(1) { flex-direction: column; align-items: stretch; gap: 8px; }
   #ledgerView > div:nth-child(1) > div { justify-content: space-between; flex-wrap: wrap; }
   #budgetInput { width: 100px !important; }
 
-  /* 요약 카드 숫자 살짝 축소(5칸 병기 오버플로 방지) */
-  #ledgerView > div:nth-child(4) [id^="total"] { font-size: 14px !important; }
+  /* 요약 카드 숫자: 크게 (한눈에) */
+  #ledgerView > div:nth-child(4) [id^="total"] { font-size: 16px !important; }
 
-  /* 이번 달 지출 + 예산목표 반반 → 모바일에서 세로 1열(숫자 깨짐 방지) */
-  .lbanner-half { grid-template-columns: 1fr !important; }
+  /* 이번 달 지출 + 예산목표 반반 → 모바일 세로 1열 */
+  .lbanner-half { grid-template-columns: minmax(0,1fr) !important; gap: 8px !important; }
 
-  /* 촘촘하게: 한 화면에 최대한 담기 (여백·패딩 축소 + 전체 살짝 축소) */
-  #ledgerView { zoom: 0.92; }
-  #ledgerView > div { margin-bottom: 10px !important; }
-  #ledgerView [style*="padding:14px 16px"] { padding: 10px 12px !important; }
-  #ledgerView [style*="padding:12px"] { padding: 8px !important; }
-  #ledgerView [style*="margin-bottom:16px"] { margin-bottom: 10px !important; }
+  /* 칸 좁혀서 한눈에: 여백·패딩 최소화 (글씨는 유지/확대) */
+  #ledgerView > div { margin-bottom: 8px !important; }
+  #ledgerView [style*="padding:14px 16px"] { padding: 9px 11px !important; }
+  #ledgerView [style*="padding:12px"] { padding: 7px !important; }
+  #ledgerView [style*="margin-bottom:16px"] { margin-bottom: 8px !important; }
+  #ledgerView [style*="margin-bottom:14px"] { margin-bottom: 8px !important; }
 
   /* 내역 줄/헤더: 6열 → 4열(날짜·내용·금액·관리), 구분·카테고리 열은 숨김(금액 색으로 구분) */
   #ledgerListHeader, .lrow { grid-template-columns: 46px 1fr auto auto !important; gap: 6px !important; }
@@ -1095,7 +1096,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
 
         <!-- 🔁 월 고정 지출 (가계부 메인 고정 · 홈과 동일 데이터) -->
-        <div style="grid-column:1/-1;background:linear-gradient(135deg,rgba(251,146,60,0.12),rgba(249,115,22,0.06));border:1px solid rgba(251,146,60,0.28);border-radius:12px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="grid-column:1/-1;min-width:0;background:linear-gradient(135deg,rgba(251,146,60,0.12),rgba(249,115,22,0.06));border:1px solid rgba(251,146,60,0.28);border-radius:12px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
           <div style="min-width:0;">
             <div style="font-size:10px;color:#fb923c;letter-spacing:1px;margin-bottom:3px;">🔁 이번 달 고정 지출</div>
             <div id="ledgerFixedList" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
