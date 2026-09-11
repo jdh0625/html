@@ -797,6 +797,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 }
 .set-btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--text); }
 .set-btn.danger { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); color: #f87171; }
+.set-btn.done-flash { background: #22c55e !important; color: #fff !important; transition: background 0.15s; }
+.key-status { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .set-range { width: 160px; accent-color: var(--accent); }
 .view-order-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 6px;
@@ -1878,9 +1880,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <div class="set-row" style="border:none;padding:4px 0;">
             <input type="password" id="geminiKeyInput" placeholder="AIza..." style="flex:1;min-width:160px;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(16,185,129,0.3);border-radius:8px;color:var(--text);font-size:13px;">
           </div>
-          <div class="set-row" style="justify-content:flex-start;gap:8px;border:none;padding:4px 0;">
-            <button class="set-btn" style="background:#10b981;" onclick="saveGeminiKey()">저장</button>
+          <div class="set-row" style="justify-content:flex-start;gap:8px;border:none;padding:4px 0;align-items:center;">
+            <button class="set-btn" style="background:#10b981;" onclick="saveGeminiKey(this)">저장</button>
             <button class="set-btn ghost" onclick="clearGeminiKey()">삭제</button>
+            <span id="geminiKeyStatus" class="key-status">⚪ 미설정</span>
           </div>
         </div>
 
@@ -1888,9 +1891,10 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <div class="set-label" style="margin-bottom:6px;">Anthropic(클로드) API 키 <small>유료·선택 (회의록 정리에도 사용)</small></div>
           <input type="password" id="aiKeyInput" placeholder="sk-ant-..." style="width:100%;padding:9px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:8px;color:var(--text);font-size:13px;box-sizing:border-box;">
         </div>
-        <div class="set-row" style="justify-content:flex-start;gap:8px;">
-          <button class="set-btn" onclick="saveAiKey()">저장</button>
+        <div class="set-row" style="justify-content:flex-start;gap:8px;align-items:center;">
+          <button class="set-btn" onclick="saveAiKey(this)">저장</button>
           <button class="set-btn ghost" onclick="clearAiKey()">삭제</button>
+          <span id="aiKeyStatus" class="key-status">⚪ 미설정</span>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:8px;">우선순위: Gemini 키가 있으면 Gemini, 없으면 Anthropic, 둘 다 없으면 무료 로컬 요약으로 답합니다.</div>
       </div>
@@ -5434,7 +5438,22 @@ function jarvisSpeak(text) {
     speechSynthesis.speak(u);
   } catch(e) {}
 }
+// ── 🤔 "생각 중" 경과 시간 표시 (오래 걸릴 때 멈춘 게 아님을 보여줌) ──
+let _thinkTimer = null;
+function beginThinking() {
+  const start = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - start) / 1000);
+    const msg = s < 3 ? '🤔 생각 중…' : ('🤔 생각 중… (' + s + '초' + (s >= 15 ? ' · 검색 중이라 조금 걸려요' : '') + ')');
+    jSet('jarvisHeroReply', msg); jSet('jarvisReply', msg);
+  };
+  tick();
+  clearInterval(_thinkTimer);
+  _thinkTimer = setInterval(tick, 1000);
+}
+function endThinking() { if (_thinkTimer) { clearInterval(_thinkTimer); _thinkTimer = null; } }
 function jarvisRespond(text) {
+  endThinking();                   // 경과 타이머 정지
   jSet('jarvisStatus', '다브스');
   jSet('jarvisReply', text);
   jSet('jarvisHeroReply', text);   // 홈 메인 카드에도 표시
@@ -5588,11 +5607,11 @@ async function callGeminiSearch(text) {
   if (!key) throw new Error('NO_GEMINI');
   const sys = "너는 '다브스', '다훈'의 검색 비서야. 구글 검색 결과를 활용해 한국어로 정확하고 최신인 정보를 줘. "
     + "맛집·장소를 물으면 실제 상호명 3~5곳을 한 줄 이유와 함께 목록으로, 뉴스는 핵심 3가지 요약, 날씨·가격·환율은 구체적인 수치로. 확실치 않으면 모른다고 말해. 간결하게.";
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key);
-  async function call(useSearch) {
+  async function call(useSearch, model) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
     const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: { maxOutputTokens: 800, temperature: 0.4 } };
     if (useSearch) body.tools = [{ google_search: {} }];
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
     const data = await res.json();
     if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
     const cand = data && data.candidates && data.candidates[0];
@@ -5601,7 +5620,11 @@ async function callGeminiSearch(text) {
     if (t) return t;
     throw new Error((cand && cand.finishReason) || 'NO_REPLY');
   }
-  try { return await call(true); } catch (e) { return await call(false); }
+  // flash-latest 검색연동 → flash-latest 기본 → 3.8-flash 기본(별칭 문제 대비)
+  const tries = [[true, 'gemini-flash-latest'], [false, 'gemini-flash-latest'], [false, 'gemini-3.8-flash']];
+  let lastErr;
+  for (const [useSearch, model] of tries) { try { return await call(useSearch, model); } catch (e) { lastErr = e; } }
+  throw lastErr || new Error('NO_REPLY');
 }
 function focusSearch() {
   if (jarvisImageMode) toggleImageMode();   // 이미지 모드였으면 끔
@@ -5762,7 +5785,7 @@ async function jarvisAgent(text) {
   const key = localStorage.getItem('dahoon_gemini_key');
   if (!key) { return jarvisAskAI(text); }   // 키 없으면 기존 경로
   const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
-  jSet('jarvisHeroReply', '🤔 생각 중...'); jSet('jarvisReply', '🤔 생각 중...');
+  beginThinking();
   try {
     let kbCtx = ''; try { kbCtx = await retrieveKnowledge(text); } catch (e) {}
     const sys = AGENT_SYS + "\n\n[사용자 데이터]\n" + buildJarvisContext() + (kbCtx ? "\n\n[내 지식창고 참고자료 — 관련되면 우선 근거로]\n" + kbCtx : "");
@@ -5976,7 +5999,7 @@ function deleteWorkDoc(id) {
 }
 async function jarvisAskAI(text) {
   const av = document.getElementById('jarvisHeroAvatar'); if (av) av.classList.add('thinking');
-  jSet('jarvisHeroReply', '🤔 생각 중...'); jSet('jarvisReply', '🤔 생각 중...');
+  beginThinking();
   try {
     if (localStorage.getItem('dahoon_gemini_key')) {
       if (isAppearanceRequest(text)) {
@@ -6226,6 +6249,12 @@ function processVoice(text) {
   // ── 앱 사용법/기능 질문은 로컬로 정확히 안내 (AI는 앱 기능을 모르므로) ──
   if (isHelpRequest(text)) { jarvisRespond(localHelp(text)); return; }
 
+  // ── 🔍 검색 의도(뉴스·날씨·맛집·환율 등)는 곧장 외부검색으로 직행 (에이전트 왕복 없이 빠르게) ──
+  if (localStorage.getItem('dahoon_gemini_key') && isSearchRequest(text)) {
+    beginThinking();
+    callGeminiSearch(text).then(jarvisRespond).catch(() => jarvisAgent(text));
+    return;
+  }
   // ── 🔌 그 외 전부: Gemini 에이전트가 스스로 도구(지출기록·이미지·문서·검색) 판단·실행 or 직접 답변 ──
   if (localStorage.getItem('dahoon_gemini_key')) { jarvisAgent(text); return; }
   if (localStorage.getItem('dahoon_ai_key')) { jarvisAskAI(text); return; }
@@ -6459,7 +6488,18 @@ function openSettings(tab) {
   const rb=document.getElementById('rulesBox'); if(rb) rb.textContent = buildRulesText();
   refreshUidRule();
   loadAiKeyUI(); updateSecDetail();
-  document.getElementById('settingsModal').classList.add('open');
+  const sm = document.getElementById('settingsModal');
+  // 설정 내 모든 실행 버튼(.set-btn, 삭제 제외)에 눌림 완료 피드백 1회 위임 등록
+  if (sm && !sm._doneDelegated) {
+    sm._doneDelegated = true;
+    sm.addEventListener('click', function(e) {
+      const b = e.target.closest('.set-btn');
+      if (!b || b.classList.contains('ghost') || b.classList.contains('danger')) return;
+      if (b.classList.contains('done-flash')) return;   // 자체 피드백(키 저장 등) 있으면 건너뜀
+      flashDone(b, '✅ 완료');
+    });
+  }
+  sm.classList.add('open');
   if (tab) setSettingsTab(tab);
   if (typeof closeMenu === 'function') closeMenu();
 }
@@ -6511,14 +6551,34 @@ function updateSecDetail() {
   else el.innerHTML = '<span style="color:var(--muted);">⚪ 확인 불가</span>';
 }
 
+// 키 활성화 상태 배지 갱신 (초록=활성/회색=미설정)
+function renderKeyStatus() {
+  const setBadge = (id, on) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.textContent = on ? '🟢 활성화됨' : '⚪ 미설정';
+    el.style.color = on ? '#4ade80' : 'var(--muted)';
+  };
+  setBadge('geminiKeyStatus', !!localStorage.getItem('dahoon_gemini_key'));
+  setBadge('aiKeyStatus', !!localStorage.getItem('dahoon_ai_key'));
+}
+// 버튼 클릭 완료 피드백: 잠깐 "✅ 활성화 완료"로 바꿨다가 원복
+function flashDone(btn, label) {
+  if (!btn) return;
+  if (!btn.dataset.orig) btn.dataset.orig = btn.textContent;
+  btn.textContent = label || '✅ 완료';
+  btn.classList.add('done-flash');
+  clearTimeout(btn._doneTimer);
+  btn._doneTimer = setTimeout(() => { btn.textContent = btn.dataset.orig; btn.classList.remove('done-flash'); }, 1500);
+}
 function loadAiKeyUI() {
   const i=document.getElementById('aiKeyInput'); if(i) i.value = localStorage.getItem('dahoon_ai_key')||'';
   const g=document.getElementById('geminiKeyInput'); if(g) g.value = localStorage.getItem('dahoon_gemini_key')||'';
+  renderKeyStatus();
 }
-function saveAiKey() { const i=document.getElementById('aiKeyInput'); if(i){ localStorage.setItem('dahoon_ai_key', i.value.trim()); toast('저장했어요 ✅'); } }
-function clearAiKey() { localStorage.removeItem('dahoon_ai_key'); const i=document.getElementById('aiKeyInput'); if(i) i.value=''; toast('삭제했어요'); }
-function saveGeminiKey() { const g=document.getElementById('geminiKeyInput'); if(g){ localStorage.setItem('dahoon_gemini_key', g.value.trim()); toast('Gemini 키 저장 ✅ 이제 다브스가 AI로 답해요'); } }
-function clearGeminiKey() { localStorage.removeItem('dahoon_gemini_key'); const g=document.getElementById('geminiKeyInput'); if(g) g.value=''; toast('삭제했어요'); }
+function saveAiKey(btn) { const i=document.getElementById('aiKeyInput'); if(i){ localStorage.setItem('dahoon_ai_key', i.value.trim()); renderKeyStatus(); flashDone(btn, i.value.trim() ? '✅ 활성화 완료' : '저장'); toast(i.value.trim() ? 'Claude 키 활성화됨 ✅' : '빈 값으로 저장됨'); } }
+function clearAiKey() { localStorage.removeItem('dahoon_ai_key'); const i=document.getElementById('aiKeyInput'); if(i) i.value=''; renderKeyStatus(); toast('삭제했어요'); }
+function saveGeminiKey(btn) { const g=document.getElementById('geminiKeyInput'); if(g){ localStorage.setItem('dahoon_gemini_key', g.value.trim()); renderKeyStatus(); flashDone(btn, g.value.trim() ? '✅ 활성화 완료' : '저장'); toast(g.value.trim() ? 'Gemini 키 활성화됨 ✅ 이제 다브스가 AI로 답해요' : '빈 값으로 저장됨'); } }
+function clearGeminiKey() { localStorage.removeItem('dahoon_gemini_key'); const g=document.getElementById('geminiKeyInput'); if(g) g.value=''; renderKeyStatus(); toast('삭제했어요'); }
 
 async function exportData() {
   let data = {};
