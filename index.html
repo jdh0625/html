@@ -4379,7 +4379,7 @@ ${text}`;
   if (geminiKey) {
     const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(geminiKey), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1500, temperature: 0.4 } })
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1500, temperature: 0.4, thinkingConfig: { thinkingLevel: 'low' } } })
     });
     const data = await res.json();
     const t = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
@@ -5527,7 +5527,7 @@ async function callGeminiAI(text) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: sys }] },
       contents: jarvisContents(text),
-      generationConfig: { maxOutputTokens: 400, temperature: 0.5, responseMimeType: 'application/json' }
+      generationConfig: { maxOutputTokens: 400, temperature: 0.5, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'low' } }
     })
   });
   const data = await res.json();
@@ -5567,15 +5567,13 @@ async function callGeminiChat(text) {
     + "가계부·일정 같은 개인 데이터 질문뿐 아니라, 과학·상식·역사·설명 등 일반 지식 질문에도 아는 만큼 자세하고 정확하게 답해줘(예: '시냅스 작용', '블랙홀'). "
     + "네가 어떤 AI인지 물으면 '구글 Gemini 모델 기반의 다브스'라고 답해. 모르면 솔직히 모른다고 해.\n\n[사용자 데이터]\n" + buildJarvisContext()
     + (kbCtx ? "\n\n[내 지식창고에서 찾은 참고자료 — 질문과 관련되면 이 내용을 우선 근거로 답해]\n" + kbCtx : "");
-  async function call(model, useSearch) {
+  async function call(model, useSearch, noThink) {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
-    const body = {
-      system_instruction: { parts: [{ text: sys }] },
-      contents: jarvisContents(text),
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.6 }
-    };
+    const gc = { maxOutputTokens: 1024, temperature: 0.6 };
+    if (!noThink) gc.thinkingConfig = { thinkingLevel: 'low' };   // 사고 최소화로 지연 감소 (안전망: 마지막엔 생략)
+    const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: gc };
     if (useSearch) body.tools = [{ google_search: {} }];   // 구글 검색 연동 (지원 시)
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
     const data = await res.json();
     if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
     const cand = data && data.candidates && data.candidates[0];
@@ -5585,12 +5583,11 @@ async function callGeminiChat(text) {
     const reason = (cand && cand.finishReason) || (data && data.promptFeedback && data.promptFeedback.blockReason) || 'NO_REPLY';
     throw new Error(reason);
   }
-  // 여러 경로로 시도해 빈 응답/모델 문제에도 최대한 답이 나오게:
-  // 1) flash-latest 검색연동 → 2) flash-latest 기본 → 3) 3.8-flash 기본(고정 폴백)
-  const attempts = [['gemini-flash-latest', true], ['gemini-flash-latest', false], ['gemini-3.8-flash', false]];
+  // 1) flash-latest 검색+사고최소 → 2) flash-latest 기본 → 3) 3.8-flash 기본 → 4) 3.8-flash 사고설정 생략(안전망)
+  const attempts = [['gemini-flash-latest', true, false], ['gemini-flash-latest', false, false], ['gemini-3.8-flash', false, false], ['gemini-3.8-flash', false, true]];
   let lastErr;
-  for (const [model, useSearch] of attempts) {
-    try { return await call(model, useSearch); }
+  for (const [model, useSearch, noThink] of attempts) {
+    try { return await call(model, useSearch, noThink); }
     catch (e) { lastErr = e; }
   }
   throw lastErr || new Error('NO_REPLY');
@@ -5607,9 +5604,11 @@ async function callGeminiSearch(text) {
   if (!key) throw new Error('NO_GEMINI');
   const sys = "너는 '다브스', '다훈'의 검색 비서야. 구글 검색 결과를 활용해 한국어로 정확하고 최신인 정보를 줘. "
     + "맛집·장소를 물으면 실제 상호명 3~5곳을 한 줄 이유와 함께 목록으로, 뉴스는 핵심 3가지 요약, 날씨·가격·환율은 구체적인 수치로. 확실치 않으면 모른다고 말해. 간결하게.";
-  async function call(useSearch, model) {
+  async function call(useSearch, model, noThink) {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
-    const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: { maxOutputTokens: 800, temperature: 0.4 } };
+    const gc = { maxOutputTokens: 800, temperature: 0.4 };
+    if (!noThink) gc.thinkingConfig = { thinkingLevel: 'low' };   // 사고 최소화(안전망: 마지막엔 생략)
+    const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: gc };
     if (useSearch) body.tools = [{ google_search: {} }];
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
     const data = await res.json();
@@ -5620,10 +5619,10 @@ async function callGeminiSearch(text) {
     if (t) return t;
     throw new Error((cand && cand.finishReason) || 'NO_REPLY');
   }
-  // flash-latest 검색연동 → flash-latest 기본 → 3.8-flash 기본(별칭 문제 대비)
-  const tries = [[true, 'gemini-flash-latest'], [false, 'gemini-flash-latest'], [false, 'gemini-3.8-flash']];
+  // 검색+사고최소 → 기본 → 3.8-flash → 3.8-flash 사고설정 생략(안전망)
+  const tries = [[true, 'gemini-flash-latest', false], [false, 'gemini-flash-latest', false], [false, 'gemini-3.8-flash', false], [false, 'gemini-3.8-flash', true]];
   let lastErr;
-  for (const [useSearch, model] of tries) { try { return await call(useSearch, model); } catch (e) { lastErr = e; } }
+  for (const [useSearch, model, noThink] of tries) { try { return await call(useSearch, model, noThink); } catch (e) { lastErr = e; } }
   throw lastErr || new Error('NO_REPLY');
 }
 function focusSearch() {
@@ -5795,7 +5794,7 @@ async function jarvisAgent(text) {
       contents: jarvisContents(text),
       tools: AGENT_TOOLS,
       tool_config: { function_calling_config: { mode: 'AUTO' } },
-      generationConfig: { maxOutputTokens: 1024, temperature: 0.5 }
+      generationConfig: { maxOutputTokens: 1024, temperature: 0.5, thinkingConfig: { thinkingLevel: 'low' } }
     };
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
@@ -5915,7 +5914,7 @@ async function callGeminiWork(text) {
   const sys = "너는 '다브스', '다훈'의 유능한 업무 비서야. 사용자가 요청한 문서(이메일·기획서·보고서·제안서·공지·코드 등)를 한국어로, 바로 복사해 쓸 수 있을 만큼 완성도 높게 작성해. "
     + "군더더기 서론/사족 없이 결과물만 내되, 형식(제목·항목·인사말·서명 등)을 제대로 갖춰. 코드 요청이면 주석 포함 실행 가능한 전체 코드를 줘. 정보가 부족하면 합리적으로 가정하고 [대괄호]로 채울 곳을 표시해.\n\n[참고 데이터]\n" + buildJarvisContext();
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key);
-  const body = { system_instruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: text }] }], generationConfig: { maxOutputTokens: 2048, temperature: 0.7 } };
+  const body = { system_instruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: text }] }], generationConfig: { maxOutputTokens: 2048, temperature: 0.7, thinkingConfig: { thinkingLevel: 'low' } } };
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await res.json();
   if (data && data.error) throw new Error(data.error.message || 'GEMINI_ERR');
