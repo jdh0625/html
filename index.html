@@ -4373,7 +4373,7 @@ ${text}`;
   // 1순위: Gemini(무료)
   const geminiKey = localStorage.getItem('dahoon_gemini_key');
   if (geminiKey) {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(geminiKey), {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(geminiKey), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1500, temperature: 0.4 } })
     });
@@ -4396,7 +4396,7 @@ ${text}`;
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -5288,7 +5288,7 @@ function showJarvisImage(src, prompt) {
 }
 // Gemini 네이티브 이미지 생성 (사용자 키, data URI라 외부호스트 차단 영향 없음)
 async function geminiImage(prompt, key) {
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=' + encodeURIComponent(key), {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=' + encodeURIComponent(key), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: '이미지를 생성해줘: ' + prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } })
   });
@@ -5477,7 +5477,7 @@ async function callDavosAI(text) {
     method: 'POST',
     headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514', max_tokens: 300,
+      model: 'claude-sonnet-5', max_tokens: 300,
       system: "너는 '다브스', 사용자 '다훈'의 개인 비서 AI야. 한국어로 친근하고 아주 간결하게(2~3문장) 답해. 아래 사용자 데이터를 참고해 답하고, 모르면 솔직히 말해.\n\n[사용자 데이터]\n" + buildJarvisContext(),
       messages: [{ role: 'user', content: text }]
     })
@@ -5503,7 +5503,7 @@ async function callGeminiAI(text) {
     "예) '노션처럼 하얗고 깔끔하게' → {\"say\":\"노션 스타일 화이트로 바꿨어요!\",\"settings\":{\"theme\":\"light\",\"density\":\"roomy\",\"radius\":8,\"accent\":\"#111111\"}}\n" +
     "예) '글자 크게' → {\"say\":\"글자를 키웠어요\",\"settings\":{\"scale\":120}}\n" +
     "외형 변경 요청이 아니면 settings는 빈 객체({}).\n\n[사용자 데이터]\n" + buildJarvisContext();
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key), {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key), {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       system_instruction: { parts: [{ text: sys }] },
@@ -5567,8 +5567,8 @@ async function callGeminiChat(text) {
     throw new Error(reason);
   }
   // 여러 경로로 시도해 빈 응답/모델 문제에도 최대한 답이 나오게:
-  // 1) 2.0-flash 검색연동 → 2) 2.0-flash 기본 → 3) 2.5-flash 기본 → 4) flash-latest 기본
-  const attempts = [['gemini-2.0-flash', true], ['gemini-2.0-flash', false], ['gemini-2.5-flash', false], ['gemini-flash-latest', false]];
+  // 1) flash-latest 검색연동 → 2) flash-latest 기본 → 3) 3.8-flash 기본(고정 폴백)
+  const attempts = [['gemini-flash-latest', true], ['gemini-flash-latest', false], ['gemini-3.8-flash', false]];
   let lastErr;
   for (const [model, useSearch] of attempts) {
     try { return await call(model, useSearch); }
@@ -5588,7 +5588,7 @@ async function callGeminiSearch(text) {
   if (!key) throw new Error('NO_GEMINI');
   const sys = "너는 '다브스', '다훈'의 검색 비서야. 구글 검색 결과를 활용해 한국어로 정확하고 최신인 정보를 줘. "
     + "맛집·장소를 물으면 실제 상호명 3~5곳을 한 줄 이유와 함께 목록으로, 뉴스는 핵심 3가지 요약, 날씨·가격·환율은 구체적인 수치로. 확실치 않으면 모른다고 말해. 간결하게.";
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key);
   async function call(useSearch) {
     const body = { system_instruction: { parts: [{ text: sys }] }, contents: jarvisContents(text), generationConfig: { maxOutputTokens: 800, temperature: 0.4 } };
     if (useSearch) body.tools = [{ google_search: {} }];
@@ -5766,7 +5766,7 @@ async function jarvisAgent(text) {
   try {
     let kbCtx = ''; try { kbCtx = await retrieveKnowledge(text); } catch (e) {}
     const sys = AGENT_SYS + "\n\n[사용자 데이터]\n" + buildJarvisContext() + (kbCtx ? "\n\n[내 지식창고 참고자료 — 관련되면 우선 근거로]\n" + kbCtx : "");
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key);
     const body = {
       system_instruction: { parts: [{ text: sys }] },
       contents: jarvisContents(text),
@@ -5790,14 +5790,14 @@ async function jarvisAgent(text) {
 }
 
 // ── 🧠 지식창고 (RAG): 내 자료를 넣으면 다브스가 그걸 근거로 답변 ──
-// Gemini 임베딩(text-embedding-004)으로 의미 검색, 실패 시 키워드 폴백.
+// Gemini 임베딩(gemini-embedding-001)으로 의미 검색, 실패 시 키워드 폴백.
 async function embedText(text) {
   const key = localStorage.getItem('dahoon_gemini_key');
   if (!key) return null;
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=' + encodeURIComponent(key), {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=' + encodeURIComponent(key), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'models/text-embedding-004', content: { parts: [{ text: String(text).slice(0, 8000) }] } })
+      body: JSON.stringify({ model: 'models/gemini-embedding-001', content: { parts: [{ text: String(text).slice(0, 8000) }] } })
     });
     const data = await res.json();
     const v = data && data.embedding && data.embedding.values;
@@ -5891,7 +5891,7 @@ async function callGeminiWork(text) {
   if (!key) throw new Error('NO_GEMINI');
   const sys = "너는 '다브스', '다훈'의 유능한 업무 비서야. 사용자가 요청한 문서(이메일·기획서·보고서·제안서·공지·코드 등)를 한국어로, 바로 복사해 쓸 수 있을 만큼 완성도 높게 작성해. "
     + "군더더기 서론/사족 없이 결과물만 내되, 형식(제목·항목·인사말·서명 등)을 제대로 갖춰. 코드 요청이면 주석 포함 실행 가능한 전체 코드를 줘. 정보가 부족하면 합리적으로 가정하고 [대괄호]로 채울 곳을 표시해.\n\n[참고 데이터]\n" + buildJarvisContext();
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + encodeURIComponent(key);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + encodeURIComponent(key);
   const body = { system_instruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts: [{ text: text }] }], generationConfig: { maxOutputTokens: 2048, temperature: 0.7 } };
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const data = await res.json();
