@@ -968,6 +968,20 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         </div>
       </div>
 
+      <div class="dash-card" id="nospendCard">
+        <div class="dash-card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <span>🌱 무지출 데이</span>
+          <span style="display:flex;align-items:center;gap:5px;font-weight:400;font-size:12px;color:var(--muted);">하루 적립
+            <input type="number" id="nospendDaily" inputmode="numeric" onchange="setNospendDaily(this.value)" placeholder="10000" style="width:82px;padding:4px 7px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text);font-size:12px;text-align:right;font-family:'Noto Sans KR',sans-serif;" />원
+          </span>
+        </div>
+        <div class="dash-big" id="nospendToday" style="font-size:16px;">-</div>
+        <div class="dash-sub" id="nospendStreak" style="margin-top:3px;"></div>
+        <div id="nospendStats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;"></div>
+        <div class="dash-sub" id="nospendProject" style="margin-top:10px;"></div>
+        <div class="dash-hint">지출을 하나도 기록하지 않은 날마다 위 금액이 쌓여요. 절약 습관이 돈이 됩니다 💪</div>
+      </div>
+
       <div class="dash-card">
         <div class="dash-card-title" style="display:flex;align-items:center;justify-content:space-between;">
           <span>🔁 이번 달 고정 지출</span>
@@ -4814,6 +4828,126 @@ function updateLedgerStartBanner() {
     + ' · 총 <b style="color:' + bC + ';">' + count.toLocaleString() + '건</b> 기록';
 }
 
+// ── 무지출 데이(No-Spend Day): 지출 기록이 없는 날마다 적립액이 쌓이는 절약 습관 트래커 ──
+function nospendDailyAmt() {
+  let v = parseInt(dashVal('nospend_daily'));
+  if (isNaN(v) || v < 0) v = 10000;   // 기본 하루 적립 1만원
+  return v;
+}
+function setNospendDaily(v) {
+  let n = parseInt(v);
+  if (isNaN(n) || n < 0) n = 0;
+  dbSet('nospend_daily', String(n));   // localStorage + 전 기기 동기화
+  renderNoSpend();
+}
+// 최근 daysBack일이 걸치는 모든 달의 가계부를 훑어 '지출 있는 날' 집합과 첫 기록일을 만든다
+function buildSpendIndex(daysBack) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const spendDays = new Set();   // expense(>0)가 있는 날 (YYYY-MM-DD)
+  let earliest = null;           // 가장 이른 가계부 기록일 (추적 시작점)
+  const seen = new Set();
+  for (let i = 0; i <= daysBack + 1; i++) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const key = 'ledger-' + d.getFullYear() + '-' + d.getMonth();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    let arr = [];
+    try { arr = JSON.parse(dashVal(key) || '[]'); } catch(e) { arr = []; }
+    if (!Array.isArray(arr)) continue;
+    arr.forEach(r => {
+      if (!r || !r.iso) return;
+      if (!earliest || r.iso < earliest) earliest = r.iso;
+      if (r.type === 'expense' && (r.amt || 0) > 0) spendDays.add(r.iso);
+    });
+  }
+  return { spendDays, earliest };
+}
+function computeNoSpend() {
+  const credit = nospendDailyAmt();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayKey = dateToKey(today);
+  const idx = buildSpendIndex(62);
+  const start = idx.earliest;       // 이전은 집계 제외
+  const hasData = !!start;
+  const todaySpent = idx.spendDays.has(todayKey);
+  const todayNoSpend = hasData && !todaySpent;   // 오늘 아직 지출 없음(진행 중)
+
+  // 과거 완료된 날(어제부터) 기준 윈도우별 무지출 일수
+  function countWindow(days) {
+    let n = 0, tracked = 0;
+    for (let i = 1; i <= days; i++) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const k = dateToKey(d);
+      if (start && k < start) break;   // 추적 시작 이전 중단
+      tracked++;
+      if (!idx.spendDays.has(k)) n++;
+    }
+    return { n, tracked };
+  }
+  const w7 = countWindow(7), w30 = countWindow(30), w60 = countWindow(60);
+
+  // 연속 무지출 스트릭: 오늘 지출했으면 0, 아니면 오늘 포함 역순으로
+  let streak = 0;
+  if (hasData && !todaySpent) {
+    for (let i = 0; ; i++) {
+      const d = new Date(today); d.setDate(today.getDate() - i);
+      const k = dateToKey(d);
+      if (start && k < start) break;
+      if (idx.spendDays.has(k)) break;
+      streak++;
+    }
+  }
+  return { credit, hasData, todaySpent, todayNoSpend, w7, w30, w60, streak };
+}
+function renderNoSpend() {
+  const card = document.getElementById('nospendCard');
+  if (!card) return;
+  const r = computeNoSpend();
+  const inp = document.getElementById('nospendDaily');
+  if (inp && document.activeElement !== inp) inp.value = r.credit;
+
+  const todayEl = document.getElementById('nospendToday');
+  const streakEl = document.getElementById('nospendStreak');
+  const statsEl = document.getElementById('nospendStats');
+  const projEl = document.getElementById('nospendProject');
+
+  if (!r.hasData) {
+    if (todayEl) todayEl.textContent = '가계부에 기록이 쌓이면 무지출 데이가 집계돼요';
+    if (streakEl) streakEl.textContent = '';
+    if (statsEl) statsEl.innerHTML = '';
+    if (projEl) projEl.textContent = '';
+    return;
+  }
+  if (todayEl) {
+    todayEl.innerHTML = r.todayNoSpend
+      ? '🎉 오늘은 <b style="color:#4ade80;">지출 없는 날!</b>'
+      : '오늘은 지출이 있었어요 <span style="color:var(--muted);font-size:12px;">— 내일 다시 도전!</span>';
+  }
+  if (streakEl) {
+    streakEl.innerHTML = r.streak > 0
+      ? '🔥 연속 무지출 <b style="color:#fbbf24;">' + r.streak + '일</b> · 그동안 <b style="color:#4ade80;">' + wonFmt(r.streak * r.credit) + '</b> 적립'
+      : '연속 기록 0일 — 오늘부터 다시 시작해봐요';
+  }
+  const cell = (label, w) =>
+    '<div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:9px 6px;text-align:center;">'
+    + '<div style="font-size:11px;color:var(--muted);">' + label + '</div>'
+    + '<div style="font-size:15px;font-weight:700;margin-top:3px;">' + w.n + '일</div>'
+    + '<div style="font-size:12px;color:#4ade80;margin-top:1px;">' + wonFmt(w.n * r.credit) + '</div>'
+    + '</div>';
+  if (statsEl) statsEl.innerHTML = cell('이번 주', r.w7) + cell('최근 30일', r.w30) + cell('최근 60일', r.w60);
+
+  // 이 페이스면(최근 30일, 데이터 부족 시 7일 비율) 앞으로 얼마 모이는지
+  const base = r.w30.tracked >= 7 ? r.w30 : (r.w7.tracked > 0 ? r.w7 : null);
+  if (projEl) {
+    if (base && base.tracked > 0) {
+      const rate = base.n / base.tracked;
+      const p30 = Math.round(rate * 30 * r.credit);
+      const p60 = Math.round(rate * 60 * r.credit);
+      projEl.innerHTML = '📈 이 페이스면 <b>30일 ≈ ' + wonFmt(p30) + '</b> · <b>60일 ≈ ' + wonFmt(p60) + '</b> 모여요';
+    } else projEl.textContent = '';
+  }
+}
+
 function renderHome() {
   const home = document.getElementById('homeView');
   if (!home) return;
@@ -4898,6 +5032,9 @@ function renderHome() {
   }
   const fc = document.getElementById('dashForgotCount');
   if (fc) fc.textContent = forgot.length ? forgot.length + '건' : '';
+
+  // 무지출 데이 트래커 갱신
+  try { renderNoSpend(); } catch(e) {}
 }
 
 function renderTaskList(boxId, dateKey) {
