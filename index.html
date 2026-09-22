@@ -995,6 +995,20 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div class="dash-hint">지출을 하나도 기록하지 않은 날마다 위 금액이 쌓여요. 절약 습관이 돈이 됩니다 💪</div>
       </div>
 
+      <div class="dash-card" id="debtCard">
+        <div class="dash-card-title">💳 부채 상환 플랜</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px;">
+          <label style="font-size:11px;color:var(--muted);display:block;">카드·대출 잔액(원)
+            <input type="number" id="debtBalance" inputmode="numeric" onchange="saveDebt()" placeholder="0" style="width:100%;margin-top:4px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text);font-size:13px;text-align:right;font-family:'Noto Sans KR',sans-serif;" />
+          </label>
+          <label style="font-size:11px;color:var(--muted);display:block;">매월 상환액(원)
+            <input type="number" id="debtPayment" inputmode="numeric" onchange="saveDebt()" placeholder="0" style="width:100%;margin-top:4px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:var(--text);font-size:13px;text-align:right;font-family:'Noto Sans KR',sans-serif;" />
+          </label>
+        </div>
+        <div id="debtBody" style="margin-top:12px;"></div>
+        <div class="dash-hint">상환하는 동안은 매달 상환액만큼 저축 여력이 줄고, 다 갚으면 회복돼요. 아래 목표·시나리오에도 이 기간이 반영됩니다.</div>
+      </div>
+
       <div class="dash-card" id="goalPlanCard">
         <div class="dash-card-title">🎯 목표 달성 플랜</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px;">
@@ -5202,9 +5216,11 @@ function renderGoalPlan() {
     return;
   }
   const months = Math.max(1, Math.round(g.years * 12));
-  const fv = fvMonthly(monthly, months, g.ret);
-  const reach = monthsToReach(g.amount, monthly, g.ret);
-  const need = reqMonthly(g.amount, months, g.ret);
+  const debt = debtInfo();   // 부채 상환 기간 동안 적립액 차감 반영
+  const longPts = buildSeries(monthly, Math.max(months, 720), g.ret, 0, debt);
+  const fv = longPts[months];
+  const reach = crossMonth(longPts, g.amount);
+  const need = reqMonthlyForGoal(g.amount, months, g.ret, debt);
   const met = fv >= g.amount;
 
   const line = (label, val, color) => '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;gap:8px;"><span style="color:var(--muted);">' + label + '</span><span style="text-align:right;' + (color ? 'color:' + color + ';' : '') + '"><b>' + val + '</b></span></div>';
@@ -5228,18 +5244,75 @@ function renderGoalPlan() {
   box.innerHTML = html;
 }
 
+// ── 부채(카드·대출) 상환: 상환 기간 동안 저축 여력이 상환액만큼 줄어듦 ──
+function debtVals() {
+  const num = k => { const v = parseFloat(dashVal(k)); return isNaN(v) ? null : v; };
+  return { balance: num('card_balance') ?? 0, payment: num('card_payment') ?? 0 };
+}
+function debtInfo() {
+  const d = debtVals();
+  const months = (d.balance > 0 && d.payment > 0) ? Math.ceil(d.balance / d.payment) : 0;
+  return { balance: d.balance, payment: d.payment, months };
+}
+function saveDebt() {
+  const put = (id, key) => { const el = document.getElementById(id); if (!el) return; const v = el.value.trim(); dbSet(key, v === '' ? '' : String(parseFloat(v) || 0)); };
+  put('debtBalance', 'card_balance');
+  put('debtPayment', 'card_payment');
+  try { renderHome(); } catch(e) {}   // 부채+목표+시나리오 함께 갱신
+}
+function renderDebt() {
+  const card = document.getElementById('debtCard'); if (!card) return;
+  const d = debtVals();
+  const setv = (id, val) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = val; };
+  setv('debtBalance', d.balance || ''); setv('debtPayment', d.payment || '');
+  const body = document.getElementById('debtBody'); if (!body) return;
+  if (!(d.balance > 0 && d.payment > 0)) {
+    body.innerHTML = '<span style="color:var(--muted);font-size:12px;">카드·대출 잔액과 매월 상환액을 넣으면 상환 완료 시점과, 상환 기간 동안 줄어드는 여유자금이 계산돼요.</span>';
+    return;
+  }
+  const now = new Date();
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
+  const income = monthlyIncomeBasis(led).amount;
+  let fixed = 0; try { fixed = fixedTotal(); } catch(e) {}
+  const capacity = Math.max(0, income - fixed);
+  const months = Math.ceil(d.balance / d.payment);
+  const duringFree = Math.max(0, capacity - d.payment);
+  const done = new Date(now.getFullYear(), now.getMonth() + months, 1);
+  const line = (label, val, color) => '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;gap:8px;"><span style="color:var(--muted);">' + label + '</span><span style="text-align:right;' + (color ? 'color:' + color + ';' : '') + '"><b>' + val + '</b></span></div>';
+  let html = '';
+  html += line('남은 잔액', wonFmt(d.balance));
+  html += line('완료까지', months + '개월 (약 ' + done.getFullYear() + '년 ' + (done.getMonth() + 1) + '월경)');
+  html += line('상환 중 월 여유자금', wonFmt(duringFree), duringFree > 0 ? '#fbbf24' : '#f87171');
+  html += line('상환 후 월 여유자금', wonFmt(capacity), '#4ade80');
+  if (duringFree <= 0) html += '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(248,113,113,0.10);font-size:12px;color:#fca5a5;line-height:1.6;">상환 기간에는 저축 여력이 거의 없어요. 이 기간엔 <b>새 지출·할부를 만들지 않는 것</b>이 최우선이에요. 다 갚으면 매달 ' + wonFmt(capacity) + '이 저축으로 돌아옵니다.</div>';
+  else html += '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(251,191,36,0.10);font-size:12px;color:#fcd34d;line-height:1.6;">상환하는 ' + months + '개월 동안은 매달 ' + wonFmt(duringFree) + '만 저축 가능하고, 완료 후 ' + wonFmt(capacity) + '으로 회복돼요.</div>';
+  body.innerHTML = html;
+}
+
 // ── 자산 성장 시나리오 + 반응형 SVG 라인차트 ──
-function buildSeries(monthly, months, annualPct, raisePerYear) {
+// debt = {months, payment}: 처음 debt.months 개월은 적립액에서 payment 만큼 차감
+function buildSeries(monthly, months, annualPct, raisePerYear, debt) {
   const r = annualPct / 100 / 12;
   const pts = [0]; let bal = 0;
   for (let i = 1; i <= months; i++) {
-    const mm = raisePerYear ? monthly * Math.pow(1 + raisePerYear, Math.floor((i - 1) / 12)) : monthly;
+    let mm = raisePerYear ? monthly * Math.pow(1 + raisePerYear, Math.floor((i - 1) / 12)) : monthly;
+    if (debt && debt.months && i <= debt.months) mm = Math.max(0, mm - debt.payment);
     bal = bal * (1 + r) + mm;
     pts.push(bal);
   }
   return pts;   // 길이 months+1 (index=개월)
 }
 function crossMonth(pts, goal) { for (let i = 0; i < pts.length; i++) if (pts[i] >= goal) return i; return Infinity; }
+// 목표 기간 내 달성에 필요한 '기본 매달 저축액' (부채 상환 차감 반영, 이진탐색)
+function reqMonthlyForGoal(goal, months, annualPct, debt) {
+  let lo = 0, hi = 20000000;
+  for (let k = 0; k < 44; k++) {
+    const mid = (lo + hi) / 2;
+    const pts = buildSeries(mid, months, annualPct, 0, debt);
+    if (pts[months] >= goal) hi = mid; else lo = mid;
+  }
+  return hi;
+}
 function wonShort(n) {
   n = Math.round(n || 0);
   if (n >= 100000000) { const v = n / 100000000; return (Math.round(v * 10) / 10) + '억'; }
@@ -5263,7 +5336,14 @@ function renderScenarios() {
     { name: '적극 저축 (+30만/월)', color: '#4ade80', monthly: baseMonthly + 300000, ret: g.ret, raise: 0 },
     { name: '성장 가정 (소득 +5%/년·수익 +3%p)', color: '#a78bfa', monthly: baseMonthly, ret: g.ret + 3, raise: 0.05 },
   ];
-  scen.forEach(s => { s.pts = buildSeries(s.monthly, months, s.ret, s.raise); s.final = s.pts[s.pts.length - 1]; s.reach = crossMonth(s.pts, goal); });
+  const debt = debtInfo();   // 부채 상환 기간 반영
+  const longMonths = Math.max(months, 720);
+  scen.forEach(s => {
+    const longPts = buildSeries(s.monthly, longMonths, s.ret, s.raise, debt);
+    s.pts = longPts.slice(0, months + 1);
+    s.final = s.pts[s.pts.length - 1];
+    s.reach = crossMonth(longPts, goal);
+  });
   const maxY = Math.max(goal * 1.05, ...scen.map(s => s.final)) || 1;
 
   // ── 반응형 SVG 라인차트 ──
@@ -5399,6 +5479,8 @@ function renderHome() {
   try { renderNoSpend(); } catch(e) {}
   // 50/30/20 예산 가이드 갱신
   try { render503020(); } catch(e) {}
+  // 부채 상환 플랜 갱신
+  try { renderDebt(); } catch(e) {}
   // 목표 달성 플랜 갱신
   try { renderGoalPlan(); } catch(e) {}
   // 자산 성장 시나리오 갱신
