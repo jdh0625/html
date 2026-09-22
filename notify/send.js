@@ -60,14 +60,65 @@ const won = n => (n || 0).toLocaleString('ko-KR') + '원';
     if (tt.pm && !tt.pmC) forgot++;
   }
 
-  const lines = [`오늘 지출 ${won(todayExp)}`];
-  if (daily && todayExp > daily) lines.push(`일 예산 ${won(todayExp - daily)} 초과`);
-  if (monthBudget) lines.push(`이번 달 여유 ${won(monthBudget - fixedTotal - monthExp)}`);
-  if (undone.length) lines.push(`오늘 ${undone.join('·')} 할 일 남음`);
-  if (forgot) lines.push(`까먹은 일 ${forgot}건`);
+  // ── 리포트 종류 결정: 말일=월간 결산, 일요일=주간 리포트, 그 외=일일 요약 ──
+  const dow = kst.getUTCDay();   // 0=일요일 (kst가 UTC로 +9 보정돼 있어 getUTC*로 KST 값 읽음)
+  const tomorrow = new Date(Date.UTC(y, m, d)); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const isLastDay = tomorrow.getUTCMonth() !== m;
 
-  const title = '📋 오늘의 정리';
-  const body = lines.join(' · ');
+  const topCat = rows => {
+    const by = {};
+    rows.forEach(r => { const c = r.cat || '기타'; by[c] = (by[c] || 0) + (r.amt || 0); });
+    return Object.entries(by).sort((a, b) => b[1] - a[1])[0];   // [cat, amt] | undefined
+  };
+
+  let title, body;
+
+  if (isLastDay) {
+    // 📊 월간 결산
+    const income = led.filter(r => r.type === 'income').reduce((s, r) => s + (r.amt || 0), 0);
+    const net = income - monthExp;   // 이번 달 모인 돈(대략)
+    const top = topCat(led.filter(r => r.type === 'expense'));
+    const parts = [`지출 ${won(monthExp)}`];
+    if (income) parts.push(`수입 ${won(income)}`);
+    parts.push(`순저축 ${won(net)}`);
+    if (top) parts.push(`최다 ${top[0]} ${won(top[1])}`);
+    if (monthBudget) parts.push(monthExp <= monthBudget ? `예산내 ✅ ${won(monthBudget - monthExp)} 남음` : `예산초과 ${won(monthExp - monthBudget)}`);
+    title = `📊 ${m + 1}월 결산`;
+    body = parts.join(' · ');
+  } else if (dow === 0) {
+    // 🗓 주간 소비 리포트 (지난 7일, 월 경계 걸치면 전월도 합산)
+    const wStart = new Date(Date.UTC(y, m, d)); wStart.setUTCDate(wStart.getUTCDate() - 6);
+    let rows = led.slice();
+    if (wStart.getUTCMonth() !== m) {
+      let pled = []; try { pled = JSON.parse(get('ledger-' + wStart.getUTCFullYear() + '-' + wStart.getUTCMonth()) || '[]'); } catch (e) {}
+      if (Array.isArray(pled)) rows = rows.concat(pled);
+    }
+    const wStartIso = `${wStart.getUTCFullYear()}-${pad(wStart.getUTCMonth() + 1)}-${pad(wStart.getUTCDate())}`;
+    const inWeek = r => r.iso && r.iso >= wStartIso && r.iso <= dateKey;
+    const weekExpRows = rows.filter(r => r.type === 'expense' && inWeek(r));
+    const weekExp = weekExpRows.reduce((s, r) => s + (r.amt || 0), 0);
+    let noSpend = 0;
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(Date.UTC(y, m, d)); dd.setUTCDate(dd.getUTCDate() - i);
+      const iso = `${dd.getUTCFullYear()}-${pad(dd.getUTCMonth() + 1)}-${pad(dd.getUTCDate())}`;
+      if (!rows.some(r => r.type === 'expense' && (r.amt || 0) > 0 && r.iso === iso)) noSpend++;
+    }
+    const top = topCat(weekExpRows);
+    const parts = [`지난 7일 지출 ${won(weekExp)}`, `일평균 ${won(Math.round(weekExp / 7))}`];
+    if (top) parts.push(`최다 ${top[0]} ${won(top[1])}`);
+    parts.push(`무지출 ${noSpend}일`);
+    title = '🗓 주간 소비 리포트';
+    body = parts.join(' · ');
+  } else {
+    // 📋 일일 요약 (기존)
+    const lines = [`오늘 지출 ${won(todayExp)}`];
+    if (daily && todayExp > daily) lines.push(`일 예산 ${won(todayExp - daily)} 초과`);
+    if (monthBudget) lines.push(`이번 달 여유 ${won(monthBudget - fixedTotal - monthExp)}`);
+    if (undone.length) lines.push(`오늘 ${undone.join('·')} 할 일 남음`);
+    if (forgot) lines.push(`까먹은 일 ${forgot}건`);
+    title = '📋 오늘의 정리';
+    body = lines.join(' · ');
+  }
 
   let tokens = []; try { tokens = JSON.parse(get('fcm_tokens') || '[]'); } catch (e) {}
   if (!Array.isArray(tokens) || !tokens.length) { console.log('등록된 기기(토큰)가 없습니다.'); return; }

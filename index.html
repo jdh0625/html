@@ -1015,6 +1015,14 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div class="dash-hint">※ 예상 수익률은 가정치이며 실제 투자 수익·원금은 보장되지 않아요. 저는 투자 자문 자격이 없어 특정 종목·상품은 추천하지 않습니다.</div>
       </div>
 
+      <div class="dash-card" id="scenarioCard">
+        <div class="dash-card-title">📈 자산 성장 시나리오</div>
+        <div id="scenarioChart" style="margin-top:10px;width:100%;"></div>
+        <div id="scenarioLegend" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:11px;color:var(--muted);"></div>
+        <div id="scenarioRows" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+        <div class="dash-hint">현재 페이스와 '더 모으기 / 더 공격적' 시나리오의 예상 자산 성장이에요. 목표·기간·수익률은 위 목표 플랜 값에 연동됩니다. 수익률은 가정치이며 실제 수익은 보장되지 않습니다.</div>
+      </div>
+
       <div class="dash-card">
         <div class="dash-card-title" style="display:flex;align-items:center;justify-content:space-between;">
           <span>🔁 이번 달 고정 지출</span>
@@ -5134,7 +5142,7 @@ function goalPlanVals() {
   const num = (k) => { const v = parseFloat(dashVal(k)); return isNaN(v) ? null : v; };
   return {
     amount: num('goal_amount') ?? 100000000,   // 기본 1억
-    years:  num('goal_years')  ?? 3,            // 기본 3년
+    years:  num('goal_years')  ?? 5,            // 기본 5년
     monthly: num('goal_monthly'),               // null = 자동(소득−고정)
     ret:    num('goal_return') ?? 6,            // 기본 연 6% 가정
   };
@@ -5218,6 +5226,88 @@ function renderGoalPlan() {
     html += '</div>';
   }
   box.innerHTML = html;
+}
+
+// ── 자산 성장 시나리오 + 반응형 SVG 라인차트 ──
+function buildSeries(monthly, months, annualPct, raisePerYear) {
+  const r = annualPct / 100 / 12;
+  const pts = [0]; let bal = 0;
+  for (let i = 1; i <= months; i++) {
+    const mm = raisePerYear ? monthly * Math.pow(1 + raisePerYear, Math.floor((i - 1) / 12)) : monthly;
+    bal = bal * (1 + r) + mm;
+    pts.push(bal);
+  }
+  return pts;   // 길이 months+1 (index=개월)
+}
+function crossMonth(pts, goal) { for (let i = 0; i < pts.length; i++) if (pts[i] >= goal) return i; return Infinity; }
+function wonShort(n) {
+  n = Math.round(n || 0);
+  if (n >= 100000000) { const v = n / 100000000; return (Math.round(v * 10) / 10) + '억'; }
+  if (n >= 10000) return Math.round(n / 10000) + '만';
+  return String(n);
+}
+function renderScenarios() {
+  const card = document.getElementById('scenarioCard'); if (!card) return;
+  const g = goalPlanVals();
+  const now = new Date();
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
+  const income = monthlyIncomeBasis(led).amount;
+  let fixed = 0; try { fixed = fixedTotal(); } catch(e) {}
+  const capacity = Math.max(0, income - fixed);
+  const baseMonthly = (g.monthly != null && g.monthly > 0) ? g.monthly : capacity;
+  const months = Math.max(12, Math.round(g.years * 12));
+  const goal = g.amount;
+
+  const scen = [
+    { name: '현재 페이스', color: '#60a5fa', monthly: baseMonthly, ret: g.ret, raise: 0 },
+    { name: '적극 저축 (+30만/월)', color: '#4ade80', monthly: baseMonthly + 300000, ret: g.ret, raise: 0 },
+    { name: '성장 가정 (소득 +5%/년·수익 +3%p)', color: '#a78bfa', monthly: baseMonthly, ret: g.ret + 3, raise: 0.05 },
+  ];
+  scen.forEach(s => { s.pts = buildSeries(s.monthly, months, s.ret, s.raise); s.final = s.pts[s.pts.length - 1]; s.reach = crossMonth(s.pts, goal); });
+  const maxY = Math.max(goal * 1.05, ...scen.map(s => s.final)) || 1;
+
+  // ── 반응형 SVG 라인차트 ──
+  const W = 340, H = 170, PL = 6, PR = 6, PT = 12, PB = 16;
+  const X = i => PL + (W - PL - PR) * (i / months);
+  const Y = v => PT + (H - PT - PB) * (1 - v / maxY);
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block;font-family:inherit;">';
+  // 목표 점선
+  const gy = Y(goal);
+  svg += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4 3" opacity="0.8"/>';
+  svg += '<text x="' + (W - PR) + '" y="' + (gy - 3) + '" text-anchor="end" font-size="8" fill="#f59e0b">목표 ' + wonShort(goal) + '</text>';
+  // 바닥축
+  svg += '<line x1="' + PL + '" y1="' + Y(0) + '" x2="' + (W - PR) + '" y2="' + Y(0) + '" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>';
+  // 연도 눈금
+  for (let yr = 1; yr * 12 <= months; yr++) {
+    const xx = X(yr * 12);
+    svg += '<line x1="' + xx + '" y1="' + PT + '" x2="' + xx + '" y2="' + Y(0) + '" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>';
+    svg += '<text x="' + xx + '" y="' + (H - 4) + '" text-anchor="middle" font-size="8" fill="var(--muted)">' + yr + '년</text>';
+  }
+  // 시나리오 폴리라인
+  scen.forEach(s => {
+    let d = '';
+    for (let i = 0; i <= months; i++) d += (i ? ' ' : '') + X(i).toFixed(1) + ',' + Y(s.pts[i]).toFixed(1);
+    svg += '<polyline points="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="1.8" stroke-linejoin="round"/>';
+  });
+  svg += '</svg>';
+  const chartEl = document.getElementById('scenarioChart'); if (chartEl) chartEl.innerHTML = svg;
+
+  // 범례
+  const legEl = document.getElementById('scenarioLegend');
+  if (legEl) legEl.innerHTML = scen.map(s => '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:3px;background:' + s.color + ';display:inline-block;border-radius:2px;"></span>' + s.name + '</span>').join('') + '<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:0;border-top:2px dashed #f59e0b;display:inline-block;"></span>목표</span>';
+
+  // 시나리오 요약 행
+  const rowsEl = document.getElementById('scenarioRows');
+  if (rowsEl) {
+    rowsEl.innerHTML = scen.map(s => {
+      const reachTxt = isFinite(s.reach) ? fmtDur(s.reach) + ' 도달' : (g.years + '년내 미달');
+      const ok = isFinite(s.reach) && s.reach <= months;
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px;border-left:3px solid ' + s.color + ';">'
+        + '<span><b style="color:' + s.color + ';">' + s.name + '</b><br><span style="color:var(--muted);font-size:11px;">매달 ' + wonFmt(s.monthly) + ' · 연 ' + s.ret + '%</span></span>'
+        + '<span style="text-align:right;white-space:nowrap;"><b>' + wonFmt(Math.round(s.final)) + '</b><br><span style="color:' + (ok ? '#4ade80' : '#f87171') + ';font-size:11px;">' + reachTxt + '</span></span>'
+        + '</div>';
+    }).join('');
+  }
 }
 
 function renderHome() {
@@ -5311,6 +5401,8 @@ function renderHome() {
   try { render503020(); } catch(e) {}
   // 목표 달성 플랜 갱신
   try { renderGoalPlan(); } catch(e) {}
+  // 자산 성장 시나리오 갱신
+  try { renderScenarios(); } catch(e) {}
 }
 
 function renderTaskList(boxId, dateKey) {
