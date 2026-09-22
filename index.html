@@ -995,6 +995,13 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <div class="dash-hint">지출을 하나도 기록하지 않은 날마다 위 금액이 쌓여요. 절약 습관이 돈이 됩니다 💪</div>
       </div>
 
+      <div class="dash-card" id="planCard">
+        <div class="dash-card-title">🧭 행동 플랜</div>
+        <div id="planStepper" style="display:flex;gap:6px;margin-top:10px;"></div>
+        <div id="planBody" style="margin-top:12px;"></div>
+        <div class="dash-hint">부채·비상금 상황에 따라 지금 집중할 단계를 자동으로 안내해요. 네모(☐)를 눌러 직접 체크할 수 있어요.</div>
+      </div>
+
       <div class="dash-card" id="debtCard">
         <div class="dash-card-title">💳 부채 상환 플랜</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:10px;">
@@ -5489,6 +5496,79 @@ function renderScenarios() {
   }
 }
 
+// ── 🧭 행동 플랜: 부채·비상금 상황으로 현재 단계를 자동 판별 + 단계별 체크리스트 ──
+function planStage() {
+  const d = debtInfo();
+  const emf = emfVals();
+  const emfDone = emf.goal > 0 && (emf.saved || 0) >= emf.goal;
+  if (d.balance > 0) return 0;      // 방어: 빚 상환 중
+  if (!emfDone) return 1;           // 안전망: 비상금 쌓기
+  return 2;                         // 축적: 목표(1억)
+}
+function togglePlan(id) {
+  const cur = dashVal('plan_' + id) === '1';
+  dbSet('plan_' + id, cur ? '' : '1');
+  renderPlan();
+}
+function renderPlan() {
+  const card = document.getElementById('planCard'); if (!card) return;
+  const stage = planStage();
+  const d = debtInfo();
+  const emf = emfVals();
+  const emfSaved = emf.saved || 0, emfGoal = emf.goal || 0;
+  const emfDone = emfGoal > 0 && emfSaved >= emfGoal;
+
+  // 스테퍼
+  const steps = [['0', '방어'], ['1', '안전망'], ['2', '축적']];
+  const stepEl = document.getElementById('planStepper');
+  if (stepEl) stepEl.innerHTML = steps.map((s, i) =>
+    '<div style="flex:1;text-align:center;padding:7px 4px;border-radius:8px;font-size:11px;line-height:1.5;background:' + (i === stage ? 'var(--accent)' : 'rgba(255,255,255,0.05)') + ';color:' + (i === stage ? '#fff' : 'var(--muted)') + ';">' + s[0] + '단계<br><b>' + s[1] + '</b></div>'
+  ).join('');
+
+  const autoItem = (done, label) => '<div style="display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;"><span style="font-size:15px;color:' + (done ? '#4ade80' : 'var(--muted)') + ';">' + (done ? '✔' : '○') + '</span><span style="color:' + (done ? 'var(--muted)' : 'var(--text)') + ';' + (done ? 'text-decoration:line-through;' : '') + '">' + label + '</span></div>';
+  const manualItem = (id, label) => { const on = dashVal('plan_' + id) === '1'; return '<div onclick="togglePlan(\'' + id + '\')" style="display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;cursor:pointer;user-select:none;"><span style="font-size:15px;color:' + (on ? '#4ade80' : 'var(--muted)') + ';">' + (on ? '☑' : '☐') + '</span><span style="' + (on ? 'color:var(--muted);text-decoration:line-through;' : 'color:var(--text);') + '">' + label + '</span></div>'; };
+
+  let title, focus, items = '', next = '';
+  if (stage === 0) {
+    title = '0단계 · 방어 — 빚부터 끝내기';
+    focus = '새 빚을 막고 카드빚을 최대한 빨리 갚는 데 집중할 때예요. 갚는 게 곧 최고의 저축입니다.';
+    items += manualItem('no_new_debt', '새 카드·할부 만들지 않기');
+    items += autoItem(emfSaved >= 500000, '소액 비상금 50만 확보 (급할 때 카드 대신)');
+    items += autoItem(false, '카드빚 완납 (남은 ' + wonFmt(d.balance) + ')');
+    next = '🎯 다음: 카드빚 완납 — 지금 페이스로 약 ' + (d.months || 0) + '개월';
+  } else if (stage === 1) {
+    title = '1단계 · 안전망 — 비상금 쌓기';
+    focus = '빚을 다 갚았어요! 이제 3~6개월 생활비를 비상금으로 모아 흔들리지 않는 안전망을 만들 때.';
+    items += autoItem(true, '카드빚 완납');
+    items += manualItem('autotransfer', '급여일 저축 자동이체 설정하기');
+    items += autoItem(emfDone, '비상금 목표 달성' + (emfGoal ? ' (' + wonFmt(emfSaved) + ' / ' + wonFmt(emfGoal) + ')' : ' (목표 먼저 설정)'));
+    next = emfGoal ? ('🎯 다음: 비상금 ' + wonFmt(Math.max(0, emfGoal - emfSaved)) + ' 더 모으기') : '🎯 다음: 비상금 카드에서 목표 금액 정하기';
+  } else {
+    title = '2단계 · 축적 — 1억 만들기';
+    focus = '안전망 완성! 이제 회복된 여유자금을 목표(1억)에 태울 때. 자동저축 + 소득 늘리기가 핵심.';
+    items += autoItem(true, '카드빚 완납');
+    items += autoItem(true, '비상금 완성');
+    items += manualItem('autoinvest', '매달 저축·투자 자동화 유지');
+    items += manualItem('income_up', '소득 늘리기 시도 (부업·자격·연봉협상)');
+    try {
+      const g = goalPlanVals();
+      const now = new Date(); let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
+      const income = monthlyIncomeBasis(led).amount; let fixed = 0; try { fixed = fixedTotal(); } catch(e) {}
+      const monthly = (g.monthly != null && g.monthly > 0) ? g.monthly : Math.max(0, income - fixed);
+      const pts = buildSeries(monthly, 720, g.ret, 0, debtInfo());
+      const reach = crossMonth(pts, g.amount);
+      next = '🎯 목표 ' + wonShort(g.amount) + ': 이 페이스면 ' + fmtDur(reach) + ' 도달';
+    } catch(e) { next = '🎯 목표 카드에서 1억 진행을 확인하세요'; }
+  }
+
+  const body = document.getElementById('planBody');
+  if (body) body.innerHTML =
+    '<div style="font-size:14px;font-weight:700;margin-bottom:4px;">' + title + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">' + focus + '</div>'
+    + items
+    + '<div style="margin-top:10px;padding:8px 10px;border-radius:8px;background:rgba(96,165,250,0.10);font-size:12px;color:#93c5fd;">' + next + '</div>';
+}
+
 function renderHome() {
   const home = document.getElementById('homeView');
   if (!home) return;
@@ -5578,6 +5658,8 @@ function renderHome() {
   try { renderNoSpend(); } catch(e) {}
   // 50/30/20 예산 가이드 갱신
   try { render503020(); } catch(e) {}
+  // 행동 플랜(현재 단계) 갱신
+  try { renderPlan(); } catch(e) {}
   // 부채 상환 플랜 갱신
   try { renderDebt(); } catch(e) {}
   // 비상금 목표 갱신
