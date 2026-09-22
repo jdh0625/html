@@ -1433,6 +1433,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
     </div>
 
     <!-- ── 살 품목 / 꿈 목록 뷰 ── -->
+    <div id="growthView" class="hidden"></div>
+
     <div id="wishView" class="hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div>
@@ -2220,7 +2222,7 @@ const days = ['월','화','수','목','금','토','일'];
 let currentTextarea = null, currentKey = null;
 
 function showView(v) {
-  ['home','weekly','monthly','ledger','invest','wish'].forEach(name => {
+  ['home','weekly','monthly','ledger','invest','growth','wish'].forEach(name => {
     const el = document.getElementById(name + 'View');
     if (el) el.classList.add('hidden');
   });
@@ -2229,6 +2231,7 @@ function showView(v) {
   if (v === 'home') renderHome();
   if (v === 'ledger') loadLedger();
   if (v === 'invest') renderInvest();
+  if (v === 'growth') renderGrowth();
   if (v === 'wish') { renderWish(); renderMeetingLogs(); }
 }
 
@@ -4921,6 +4924,271 @@ function wonText(n) {
   return kor ? exact + ' (' + kor + ')' : exact;
 }
 
+/* ════════════ 🌱 성장(Growth OS) 모듈 — 가계부 통합판 ════════════
+ * 돈·투자는 가계부 기존 기능 재사용. 여기선 몸·건강·정신·공부·독서·몸값·목표·리뷰만.
+ * 데이터는 dbSet/dashVal('growth_data') 단일 blob 로 Firebase 동기화. 함수 전부 gx 접두사. */
+function gxData() {
+  var d; try { d = JSON.parse(dashVal('growth_data') || '{}'); } catch (e) { d = {}; }
+  if (!d || typeof d !== 'object') d = {};
+  d.assets = d.assets || { cash: 0, savings: 0, invest: 0, debt: 0, living: 0 };
+  d.targets = d.targets || { eng: 25, read: 30 };
+  d.incomeTarget = d.incomeTarget || 0; d.curIncome = d.curIncome || 0;
+  d.workouts = d.workouts || {}; d.health = d.health || {}; d.mind = d.mind || {};
+  d.study = d.study || {}; d.books = d.books || []; d.value = d.value || {};
+  d.plan = d.plan || {}; d.review = d.review || {};
+  return d;
+}
+function gxSave(d) { dbSet('growth_data', JSON.stringify(d)); }
+function gxNum(v) { var n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; }
+function gxWon(n) { return Math.round(gxNum(n)).toLocaleString('ko-KR') + '원'; }
+function gxShort(n) { n = Math.round(gxNum(n)); var s = n < 0 ? '-' : ''; n = Math.abs(n); if (n >= 100000000) return s + (Math.round(n / 10000000) / 10) + '억'; if (n >= 10000) return s + Math.round(n / 10000).toLocaleString('ko-KR') + '만'; return s + n.toLocaleString('ko-KR'); }
+function gxEsc(s) { return escHtml(String(s == null ? '' : s)); }
+function gxToday() { return dateToKey(new Date()); }
+function gxMonthKey() { var d = new Date(); return d.getFullYear() + '-' + d.getMonth(); }
+function gxMonthLabel(k) { var p = k.split('-'); return p[0] + '년 ' + (parseInt(p[1], 10) + 1) + '월'; }
+function gxWeekKey() { var d = new Date(); var g = d.getDay(); d.setDate(d.getDate() + (g === 0 ? -6 : 1 - g)); d.setHours(0, 0, 0, 0); return dateToKey(d); }
+function gxNetWorth() { var a = gxData().assets; return gxNum(a.cash) + gxNum(a.savings) + gxNum(a.invest) - gxNum(a.debt); }
+function gxBar(r) { r = Math.max(0, Math.min(1, r || 0)); return '<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden;margin:6px 0;"><div style="height:100%;width:' + Math.round(r * 100) + '%;background:linear-gradient(90deg,#3b82f6,#60a5fa);border-radius:6px;transition:width .4s;"></div></div>'; }
+function gxRow(l, v, c) { return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;"><span style="color:var(--muted);font-size:13px;">' + l + '</span><b style="' + (c ? 'color:' + c + ';' : '') + 'font-size:14px;">' + v + '</b></div>'; }
+function gxFld(id, label, val, type) { return '<label style="display:block;margin-bottom:9px;"><span style="display:block;font-size:11px;color:var(--muted);margin-bottom:3px;">' + label + '</span><input id="' + id + '" type="' + (type || 'number') + '" ' + (type ? '' : 'inputmode="numeric"') + ' placeholder="0" value="' + gxEsc(val == null ? '' : val) + '" style="width:100%;padding:9px 11px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;"></label>'; }
+function gxTA(id, label, val) { return '<label style="display:block;margin-bottom:9px;"><span style="display:block;font-size:11px;color:var(--muted);margin-bottom:3px;">' + label + '</span><textarea id="' + id + '" rows="2" style="width:100%;padding:9px 11px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;resize:vertical;">' + gxEsc(val || '') + '</textarea></label>'; }
+function gxCard(inner) { return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:15px 16px;margin-bottom:12px;">' + inner + '</div>'; }
+function gxBtn(label, onclick, style) { return '<button onclick="' + onclick + '" style="width:100%;padding:11px;border:none;border-radius:9px;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;margin-top:4px;' + (style || '') + '">' + label + '</button>'; }
+function gxVal(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
+
+var gxTab = 'summary';
+var GX_TABS = [['summary', '🌱 요약'], ['mind', '🧠 생각'], ['health', '❤ 건강'], ['body', '🏃 몸'], ['study', '📚 공부'], ['reading', '📖 독서'], ['value', '💼 몸값'], ['plan', '🗓 90일'], ['review', '📋 리뷰'], ['emergency', '🛟 비상금'], ['buy', '🧾 살까'], ['level', '🎮 단계']];
+
+function gxGo(t) { gxTab = t; renderGrowth(); }
+function renderGrowth() {
+  var el = document.getElementById('growthView'); if (!el) return;
+  var nav = GX_TABS.map(function (t) {
+    var on = t[0] === gxTab;
+    return '<button onclick="gxGo(\'' + t[0] + '\')" style="padding:7px 12px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-family:inherit;white-space:nowrap;' +
+      (on ? 'background:#3b82f6;color:#fff;' : 'background:rgba(255,255,255,0.05);color:var(--muted);') + '">' + t[1] + '</button>';
+  }).join('');
+  el.innerHTML =
+    '<h1 style="margin:0 0 4px;font-size:16px;letter-spacing:2px;">🌱 성장</h1>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:12px;">몸·건강·정신·공부·목표를 매일 관리해요 (돈·투자는 가계부 탭에서)</div>' +
+    '<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">' + nav + '</div>' +
+    '<div id="gxBody"></div>';
+  var fn = window['gxRender_' + gxTab]; if (fn) fn();
+}
+
+// ── 요약 ──
+function gxRender_summary() {
+  var d = gxData(), nw = gxNetWorth();
+  var LV = gxLevelOf(nw);
+  var wg = gxWeekGrowth();
+  var need = gxNum(d.assets.living);
+  var emf = need > 0 ? gxNum(d.assets.cash) / need : 0;
+  var ms = [['1,000만원', 10000000], ['3,000만원', 30000000], ['5,000만원', 50000000], ['1억원', 100000000]];
+  document.getElementById('gxBody').innerHTML =
+    '<div style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:10px;padding:10px 13px;font-size:13px;margin-bottom:12px;">인생 자산 단계 <b>LEVEL ' + LV.n + '</b> · ' + LV.label + ' · 순자산 <b>' + gxShort(nw) + '</b></div>' +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">🌱 이번 주 성장</h3>' +
+      gxRow('운동 횟수', wg.workoutDays + '일') + gxRow('평균 수면', wg.avgSleep ? wg.avgSleep.toFixed(1) + '시간' : '-') +
+      gxRow('공부 시간', gxFmtMin(wg.study)) + gxRow('영어', gxFmtMin(wg.eng)) + gxRow('독서', gxFmtMin(wg.read))) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">💰 자산 스냅샷</h3>' +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">비상자금·순자산·인생단계 계산용. (상세 지출은 가계부 탭)</div>' +
+      gxFld('gx-cash', '현금', d.assets.cash) + gxFld('gx-savings', '예적금', d.assets.savings) +
+      gxFld('gx-invest', '투자자산', d.assets.invest) + gxFld('gx-debt', '부채', d.assets.debt) +
+      gxFld('gx-living', '월 생활비', d.assets.living) +
+      gxRow('순자산', gxWon(nw), nw >= 0 ? '#4ade80' : '#f87171') +
+      gxRow('비상자금', need > 0 ? emf.toFixed(1) + '개월' : '생활비 입력 필요') +
+      gxBtn('저장', 'gxSaveAssets()')) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">🎯 목표까지</h3>' +
+      ms.map(function (m) { var r = m[1] > 0 ? nw / m[1] : 0; var left = Math.max(0, m[1] - nw); return '<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:12px;"><span>' + m[0] + '</span><b>' + (left <= 0 ? '달성 🎉' : gxShort(left) + ' 남음') + '</b></div>' + gxBar(r) + '</div>'; }).join(''));
+}
+function gxSaveAssets() {
+  var d = gxData();
+  d.assets = { cash: gxNum(gxVal('gx-cash')), savings: gxNum(gxVal('gx-savings')), invest: gxNum(gxVal('gx-invest')), debt: gxNum(gxVal('gx-debt')), living: gxNum(gxVal('gx-living')) };
+  gxSave(d); toast('자산 스냅샷 저장 ✅'); renderGrowth();
+}
+var GX_LEVELS = [{ n: 0, min: 0, label: '0~500만원' }, { n: 1, min: 5000000, label: '500~1,000만원' }, { n: 2, min: 10000000, label: '1,000~3,000만원' }, { n: 3, min: 30000000, label: '3,000~5,000만원' }, { n: 4, min: 50000000, label: '5,000만~1억원' }, { n: 5, min: 100000000, label: '1억원 이상' }];
+function gxLevelOf(nw) { for (var i = GX_LEVELS.length - 1; i >= 0; i--) if (nw >= GX_LEVELS[i].min) return GX_LEVELS[i]; return GX_LEVELS[0]; }
+function gxFmtMin(m) { m = gxNum(m); if (!m) return '0분'; if (m < 60) return m + '분'; return Math.floor(m / 60) + '시간 ' + (m % 60) + '분'; }
+function gxWeekGrowth() {
+  var d = gxData(), wk = d.workouts[gxWeekKey()] || { days: {} };
+  var workoutDays = 0; ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(function (x) { var y = wk.days && wk.days[x]; if (y && (y.s || y.c || y.w)) workoutDays++; });
+  var sleeps = [], dt = new Date();
+  for (var i = 0; i < 7; i++) { var h = d.health[dateToKey(dt)]; if (h && gxNum(h.sleep) > 0) sleeps.push(gxNum(h.sleep)); dt.setDate(dt.getDate() - 1); }
+  var avgSleep = sleeps.length ? sleeps.reduce(function (a, b) { return a + b; }, 0) / sleeps.length : 0;
+  var study = 0, eng = 0, read = 0, d2 = new Date();
+  for (var j = 0; j < 7; j++) { var s = d.study[dateToKey(d2)]; if (s) { ['영어', '책', '업무', '개발', '사업', '재테크', '기타'].forEach(function (c) { study += gxNum(s[c]); }); eng += gxNum(s['영어']); read += gxNum(s['책']); } d2.setDate(d2.getDate() - 1); }
+  return { workoutDays: workoutDays, avgSleep: avgSleep, study: study, eng: eng, read: read };
+}
+
+// ── 생각정리 ──
+function gxRender_mind() {
+  var d = gxData(), tk = gxToday(), m = d.mind[tk] || {};
+  var recent = Object.keys(d.mind).sort().reverse().slice(0, 5).map(function (k) { var x = d.mind[k]; return '<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px;"><span style="color:var(--muted);">' + k + '</span>' + (x.action ? ' · 행동: <b>' + gxEsc(x.action) + '</b>' : '') + '</div>'; }).join('') || '<div style="color:var(--muted);font-size:12px;">아직 기록이 없어요.</div>';
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">🧠 매일 세 질문 · ' + tk + '</h3>' +
+      gxTA('gx-worry', '1. 지금 걱정하는 것은?', m.worry) + gxTA('gx-control', '2. 그중 내가 통제할 수 있는 것은?', m.control) + gxTA('gx-action', '3. 오늘 실제로 할 행동 하나는?', m.action) +
+      '<div style="height:1px;background:rgba(255,255,255,0.08);margin:8px 0;"></div>' +
+      gxTA('gx-good', '오늘 잘한 것', m.good) + gxTA('gx-grateful', '감사한 것', m.grateful) + gxTA('gx-tomorrow', '내일 가장 중요한 일', m.tomorrow) +
+      gxBtn('오늘 저장', 'gxSaveMind()') +
+      '<div style="font-size:11px;color:var(--muted);margin-top:8px;">통제할 수 없는 건 내려놓고, 통제할 수 있는 것에 행동하세요.</div>') +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">지난 기록</h3>' + recent);
+}
+function gxSaveMind() {
+  var d = gxData(); d.mind[gxToday()] = { worry: gxVal('gx-worry'), control: gxVal('gx-control'), action: gxVal('gx-action'), good: gxVal('gx-good'), grateful: gxVal('gx-grateful'), tomorrow: gxVal('gx-tomorrow') };
+  gxSave(d); toast('생각 정리 저장 ✅'); renderGrowth();
+}
+
+// ── 건강 ──
+var GX_COND = ['매우좋음', '좋음', '보통', '나쁨', '매우나쁨'];
+function gxRender_health() {
+  var d = gxData(), tk = gxToday(), h = d.health[tk] || {};
+  var recent = '', dt = new Date();
+  for (var i = 0; i < 7; i++) { var k = dateToKey(dt), r = d.health[k]; recent += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;"><span style="color:var(--muted);">' + k.slice(5) + '</span>' + (r ? '<span>수면 ' + (r.sleep || 0) + 'h · ' + (r.workout ? '운동✅ ' : '') + (r.drink ? '음주 ' : '') + gxEsc(r.cond || '-') + '</span>' : '<span style="color:var(--muted);">기록 없음</span>') + '</div>'; dt.setDate(dt.getDate() - 1); }
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">❤ 오늘 건강 · ' + tk + '</h3>' +
+      gxFld('gx-h-sleep', '수면(시간)', h.sleep) + gxFld('gx-h-water', '물(잔)', h.water) +
+      gxTgl('gx-h-workout', '운동했나요?', h.workout) + gxTgl('gx-h-drink', '음주했나요?', h.drink) + gxTgl('gx-h-late', '야식 먹었나요?', h.late) +
+      '<label style="display:block;margin-bottom:9px;"><span style="display:block;font-size:11px;color:var(--muted);margin-bottom:3px;">컨디션</span><select id="gx-h-cond" style="width:100%;padding:9px 11px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;">' + GX_COND.map(function (c) { return '<option' + (h.cond === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label>' +
+      gxBtn('오늘 저장', 'gxSaveHealth()')) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">최근 7일</h3>' + recent) +
+    '<div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:11px 13px;font-size:12px;color:#fbbf24;line-height:1.6;">건강 이상이 지속되면 스스로 판단하지 말고 전문의 상담을 받으세요. 이 앱은 진단을 하지 않습니다.</div>';
+}
+function gxTgl(id, label, on) { return '<label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><span style="font-size:13px;color:var(--muted);">' + label + '</span><input id="' + id + '" type="checkbox"' + (on ? ' checked' : '') + ' style="width:20px;height:20px;accent-color:#3b82f6;"></label>'; }
+function gxSaveHealth() {
+  var d = gxData(); d.health[gxToday()] = { sleep: gxNum(gxVal('gx-h-sleep')), water: gxNum(gxVal('gx-h-water')), workout: document.getElementById('gx-h-workout').checked, drink: document.getElementById('gx-h-drink').checked, late: document.getElementById('gx-h-late').checked, cond: document.getElementById('gx-h-cond').value };
+  gxSave(d); toast('건강 기록 저장 ✅'); renderGrowth();
+}
+
+// ── 몸(운동) ──
+var GX_DOW = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], GX_DOWK = ['월', '화', '수', '목', '금', '토', '일'], GX_ACTS = [['s', '근력'], ['c', '유산소'], ['w', '걷기']];
+function gxRender_body() {
+  var d = gxData(), k = gxWeekKey();
+  var wko = d.workouts[k] || { days: {}, weight: '', sleep: '' }; wko.days = wko.days || {};
+  var goal = 3;
+  var head = '<tr><th style="text-align:left;padding:6px 2px;">운동</th>' + GX_DOWK.map(function (x) { return '<th style="padding:6px 2px;">' + x + '</th>'; }).join('') + '</tr>';
+  var body = GX_ACTS.map(function (a) { return '<tr><td style="text-align:left;padding:7px 2px;border-top:1px solid rgba(255,255,255,0.06);">' + a[1] + '</td>' + GX_DOW.map(function (dy) { var on = wko.days[dy] && wko.days[dy][a[0]]; return '<td style="padding:7px 2px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);"><input type="checkbox" data-d="' + dy + '" data-a="' + a[0] + '"' + (on ? ' checked' : '') + ' style="width:17px;height:17px;accent-color:#3b82f6;"></td>'; }).join('') + '</tr>'; }).join('');
+  var doneDays = 0; GX_DOW.forEach(function (dy) { var x = wko.days[dy]; if (x && (x.s || x.c || x.w)) doneDays++; });
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">🏃 이번 주 운동</h3>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;">' + head + body + '</table>' +
+      gxRow('운동한 날', doneDays + '일 / 목표 ' + goal + '일') + gxBar(doneDays / goal)) +
+    gxCard(gxFld('gx-b-weight', '체중(kg)', wko.weight) + gxFld('gx-b-sleep', '평균 수면(시간)', wko.sleep) + gxBtn('기록 저장', 'gxSaveBody()'));
+  document.querySelectorAll('#gxBody input[type=checkbox]').forEach(function (cb) {
+    cb.addEventListener('change', function () { var dd = gxData(); var w = dd.workouts[gxWeekKey()] || { days: {} }; w.days = w.days || {}; var day = cb.getAttribute('data-d'); w.days[day] = w.days[day] || {}; w.days[day][cb.getAttribute('data-a')] = cb.checked; dd.workouts[gxWeekKey()] = w; gxSave(dd); renderGrowth(); });
+  });
+}
+function gxSaveBody() { var d = gxData(); var w = d.workouts[gxWeekKey()] || { days: {} }; w.weight = gxNum(gxVal('gx-b-weight')); w.sleep = gxNum(gxVal('gx-b-sleep')); d.workouts[gxWeekKey()] = w; gxSave(d); toast('저장 ✅'); }
+
+// ── 공부 ──
+var GX_SCATS = ['영어', '책', '업무', '개발', '사업', '재테크', '기타'];
+function gxRender_study() {
+  var d = gxData(), tk = gxToday(), t = d.study[tk] || {};
+  function sum(days) { var tot = {}, all = 0, dt = new Date(); GX_SCATS.forEach(function (c) { tot[c] = 0; }); for (var i = 0; i < days; i++) { var r = d.study[dateToKey(dt)]; if (r) GX_SCATS.forEach(function (c) { tot[c] += gxNum(r[c]); }); dt.setDate(dt.getDate() - 1); } GX_SCATS.forEach(function (c) { all += tot[c]; }); return { tot: tot, all: all }; }
+  var wk = sum(7), mo = sum(30);
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">📚 오늘 공부(분) · ' + tk + '</h3>' + GX_SCATS.map(function (c) { return gxFld('gx-st-' + c, c, t[c]); }).join('') + gxBtn('오늘 저장', 'gxSaveStudy()')) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">주간 누적</h3>' + GX_SCATS.map(function (c) { return gxRow(c, gxFmtMin(wk.tot[c])); }).join('') + '<div style="height:1px;background:rgba(255,255,255,0.08);margin:6px 0;"></div>' + gxRow('합계', gxFmtMin(wk.all), '#4ade80')) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">월간 누적</h3>' + GX_SCATS.map(function (c) { return gxRow(c, gxFmtMin(mo.tot[c])); }).join('') + '<div style="height:1px;background:rgba(255,255,255,0.08);margin:6px 0;"></div>' + gxRow('합계', gxFmtMin(mo.all), '#4ade80')) +
+    gxCard('<div style="font-size:12px;color:var(--muted);">기본선: 영어 하루 ' + gxNum(d.targets.eng) + '분 · 독서 하루 ' + gxNum(d.targets.read) + '분. 읽었다는 사실보다 무슨 행동이 바뀌었는지가 중요합니다.</div>');
+}
+function gxSaveStudy() { var d = gxData(), rec = {}; GX_SCATS.forEach(function (c) { rec[c] = gxNum(gxVal('gx-st-' + c)); }); d.study[gxToday()] = rec; gxSave(d); toast('공부 저장 ✅'); renderGrowth(); }
+
+// ── 독서 ──
+function gxRender_reading() {
+  var d = gxData(), books = d.books || [];
+  var list = books.length ? books.map(function (b) { var st = ''; for (var i = 0; i < 5; i++) st += i < gxNum(b.rating) ? '★' : '☆'; return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><b>' + gxEsc(b.title) + '</b> <span style="color:var(--muted);font-size:12px;">' + gxEsc(b.author || '') + '</span><span style="margin-left:auto;color:#fbbf24;font-size:12px;">' + st + '</span></div>' + (b.summary ? '<div style="font-size:12px;margin-top:3px;">핵심: ' + gxEsc(b.summary) + '</div>' : '') + (b.action ? '<div style="font-size:12px;color:#34d399;font-weight:600;margin-top:3px;">→ 실행: ' + gxEsc(b.action) + '</div>' : '') + '<button onclick="gxDelBook(\'' + b.id + '\')" style="margin-top:5px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#f87171;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;">삭제</button></div>'; }).join('') : '<div style="color:var(--muted);font-size:12px;">아직 기록한 책이 없어요.</div>';
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">📖 책 추가</h3>' +
+      gxFld('gx-bk-title', '책 제목', '', 'text') + gxFld('gx-bk-author', '저자', '', 'text') + gxFld('gx-bk-rating', '평점(1~5)', '') +
+      gxTA('gx-bk-summary', '핵심 내용 3줄', '') + gxFld('gx-bk-action', '이 책으로 바꿀 행동 1가지', '', 'text') +
+      gxBtn('저장', 'gxSaveBook()')) +
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">내 책장</h3>' + list);
+}
+function gxSaveBook() { var t = gxVal('gx-bk-title'); if (!t) { alert('책 제목을 입력하세요.'); return; } var d = gxData(); d.books.unshift({ id: 'b' + Date.now(), title: t, author: gxVal('gx-bk-author'), rating: Math.max(0, Math.min(5, gxNum(gxVal('gx-bk-rating')))), summary: gxVal('gx-bk-summary'), action: gxVal('gx-bk-action'), date: gxToday() }); gxSave(d); toast('책 저장 ✅'); renderGrowth(); }
+function gxDelBook(id) { if (!confirm('삭제할까요?')) return; var d = gxData(); d.books = d.books.filter(function (b) { return b.id !== id; }); gxSave(d); renderGrowth(); }
+
+// ── 몸값 ──
+var GX_BV = [['learned', '이번 달 새로 배운 기술'], ['skill', '돈으로 바꿀 수 있는 능력'], ['result', '회사에서 만든 성과'], ['saved', '비용을 절감한 성과'], ['revenue', '매출에 기여한 성과'], ['automated', '자동화한 업무'], ['next', '앞으로 키울 기술']];
+function gxRender_value() {
+  var d = gxData(), mk = gxMonthKey(), bv = d.value[mk] || {};
+  var cur = gxNum(d.curIncome), target = gxNum(d.incomeTarget) || cur;
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">💼 월소득 목표 · ' + gxMonthLabel(mk) + '</h3>' +
+      gxFld('gx-v-cur', '현재 월소득', d.curIncome) + gxFld('gx-v-target', '목표 월소득(직접 설정)', d.incomeTarget) +
+      gxBar(target > 0 ? cur / target : 0) +
+      '<div style="font-size:11px;color:var(--muted);">예시 경로: 현재 → +50만 → +100만 → +200만. 투자수익보다 소득 증가가 우선입니다.</div>') +
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">이번 달 몸값 점검</h3>' +
+      GX_BV.map(function (q) { return gxTA('gx-bv-' + q[0], q[1], bv[q[0]]); }).join('') +
+      gxFld('gx-bv-side', '이번 달 부수입(원)', bv.side) +
+      gxBtn('이번 달 저장', 'gxSaveValue()'));
+}
+function gxSaveValue() { var d = gxData(), mk = gxMonthKey(), rec = {}; GX_BV.forEach(function (q) { rec[q[0]] = gxVal('gx-bv-' + q[0]); }); rec.side = gxNum(gxVal('gx-bv-side')); d.value[mk] = rec; d.curIncome = gxNum(gxVal('gx-v-cur')); d.incomeTarget = gxNum(gxVal('gx-v-target')); gxSave(d); toast('몸값 점검 저장 ✅'); renderGrowth(); }
+
+// ── 90일 ──
+var GX_AREAS = ['돈', '소득', '운동', '건강', '영어', '독서', '업무능력'], GX_PF = [['goal', '목표'], ['now', '현재상태'], ['t90', '90일 목표'], ['month', '이번달'], ['week', '이번주'], ['today', '오늘 할 일']];
+function gxRender_plan() {
+  var d = gxData();
+  document.getElementById('gxBody').innerHTML =
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:10px;">목표는 크게, 오늘 할 일은 작고 구체적으로. 자동 저장됩니다.</div>' +
+    GX_AREAS.map(function (a) { var p = d.plan[a] || {}; return gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">' + a + '</h3>' + GX_PF.map(function (f) { return '<label style="display:block;margin-bottom:7px;"><span style="display:block;font-size:11px;color:var(--muted);margin-bottom:2px;">' + f[1] + '</span><input data-area="' + a + '" data-f="' + f[0] + '" type="text" value="' + gxEsc(p[f[0]] || '') + '" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:var(--text);font-size:13px;font-family:inherit;outline:none;box-sizing:border-box;"></label>'; }).join('')); }).join('');
+  document.querySelectorAll('#gxBody input[data-area]').forEach(function (inp) {
+    inp.addEventListener('input', function () { var dd = gxData(); var a = inp.getAttribute('data-area'); dd.plan[a] = dd.plan[a] || {}; dd.plan[a][inp.getAttribute('data-f')] = inp.value; gxSave(dd); });
+  });
+}
+
+// ── 월간리뷰 ──
+var GX_RV = [['best', '이번 달 가장 잘한 것'], ['waste', '가장 돈 낭비한 것'], ['never', '다시는 하지 않을 소비'], ['grew', '가장 성장한 능력'], ['cut', '다음 달 줄일 것'], ['add', '다음 달 늘릴 것'], ['g1', '다음 달 중요한 목표 1'], ['g2', '목표 2'], ['g3', '목표 3']];
+function gxRender_review() {
+  var d = gxData(), mk = gxMonthKey(), rv = d.review[mk] || {}, wg = gxWeekGrowth();
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 8px;font-size:13px;color:#60a5fa;">📋 숫자(자동) · ' + gxMonthLabel(mk) + '</h3>' +
+      gxRow('순자산', gxWon(gxNetWorth())) + gxRow('이번주 운동', wg.workoutDays + '일') + gxRow('평균 수면', wg.avgSleep ? wg.avgSleep.toFixed(1) + 'h' : '-') + gxRow('영어(주)', gxFmtMin(wg.eng)) + gxRow('독서(주)', gxFmtMin(wg.read)) +
+      '<div style="font-size:11px;color:var(--muted);margin-top:6px;">월 수입/지출/저축률은 가계부 탭에서 확인하세요.</div>') +
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">돌아보기</h3>' + GX_RV.map(function (q) { return gxTA('gx-rv-' + q[0], q[1], rv[q[0]]); }).join('') + gxBtn('이번 달 리뷰 저장', 'gxSaveReview()') + '<div style="font-size:11px;color:var(--muted);margin-top:8px;">자책이 아니라 조정을 위한 리뷰입니다.</div>');
+}
+function gxSaveReview() { var d = gxData(), mk = gxMonthKey(), rec = {}; GX_RV.forEach(function (q) { rec[q[0]] = gxVal('gx-rv-' + q[0]); }); d.review[mk] = rec; gxSave(d); toast('월간 리뷰 저장 ✅'); renderGrowth(); }
+
+// ── 비상자금 ──
+function gxRender_emergency() {
+  var d = gxData(), a = d.assets, need = gxNum(a.living), cash = gxNum(a.cash);
+  var months = need > 0 ? cash / need : 0, stage = months >= 6 ? 3 : (months >= 3 ? 2 : (months >= 1 ? 1 : 0));
+  var bars = [[1, '1개월'], [3, '3개월'], [6, '6개월']].map(function (s) { var target = need * s[0], r = target > 0 ? cash / target : 0; return '<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;font-size:13px;"><span>' + s[0] + '단계 · 생활비 ' + s[1] + '</span><b>' + gxWon(target) + '</b></div>' + gxBar(r) + '<div style="font-size:11px;color:var(--muted);">' + Math.round(r * 100) + '% · 현금 ' + gxWon(cash) + '</div></div>'; }).join('');
+  var warn = stage < 2 ? '<div style="background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:11px;font-size:12px;color:#fbbf24;">비상자금 3개월분(' + gxWon(need * 3) + ') 전까지 투자 가능액을 과도하게 잡지 마세요.</div>' : '<div style="background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.25);border-radius:10px;padding:11px;font-size:12px;color:#4ade80;">3개월 안전망 확보 ✅ 투자 비중을 늘려도 좋습니다.</div>';
+  document.getElementById('gxBody').innerHTML = gxCard('<div style="font-size:17px;font-weight:700;margin-bottom:10px;">현재 ' + (need > 0 ? months.toFixed(1) + '개월분 · ' + stage + '단계' : '요약 탭에서 생활비/현금 입력') + '</div>' + bars + warn);
+}
+
+// ── 살까말까 ──
+var GX_BUYQ = ['반드시 필요한가?', '30일 뒤에도 필요할 것 같은가?', '내 생산성을 높이는가?', '내 건강을 높이는가?', '내 수입을 높이는 데 도움이 되는가?', '이미 비슷한 것이 있는가?', '할부가 필요한가?', '구매 후 순자산 목표에 영향을 주는가?'];
+var GX_BUYNEG = { 5: true, 6: true, 7: true };
+function gxRender_buy() {
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<h3 style="margin:0 0 10px;font-size:13px;color:#60a5fa;">🧾 살까 말까</h3>' +
+      gxFld('gx-buy-name', '사려는 것', '', 'text') + gxFld('gx-buy-price', '가격(원)', '') +
+      GX_BUYQ.map(function (q, i) { return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px;"><span>' + (i + 1) + '. ' + q + '</span><span style="white-space:nowrap;"><label style="color:var(--muted);cursor:pointer;margin-right:8px;"><input type="radio" name="gxbq' + i + '" value="y">예</label><label style="color:var(--muted);cursor:pointer;"><input type="radio" name="gxbq' + i + '" value="n" checked>아니오</label></span></div>'; }).join('') +
+      gxBtn('판단 도와줘', 'gxEvalBuy()') + '<div id="gx-buy-result"></div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:10px;">※ 강제 판단이 아니라 소비 점검 도구입니다. 결정은 당신이 합니다.</div>');
+}
+function gxEvalBuy() {
+  var name = gxVal('gx-buy-name') || '물건', price = gxNum(gxVal('gx-buy-price')), score = 0;
+  for (var i = 0; i < GX_BUYQ.length; i++) { var sel = document.querySelector('input[name="gxbq' + i + '"]:checked'); var yes = sel && sel.value === 'y'; if (GX_BUYNEG[i]) { if (yes) score -= 1; } else { if (yes) score += 1; } }
+  var nw = gxNetWorth(), heavy = nw > 0 ? price > nw * 0.05 : price >= 100000, verdict, col, msg;
+  if (score >= 4 && !heavy) { verdict = '구매 추천'; col = '#4ade80'; msg = '필요와 가치가 분명해요. 사도 좋아요.'; }
+  else if (score >= 3) { verdict = '24시간 보류'; col = '#fbbf24'; msg = '하루만 두고 다시 보세요.'; }
+  else if (score >= 1) { verdict = '7일 보류'; col = '#fbbf24'; msg = '일주일 보류. 그때도 생각나면 진짜 필요한 거예요.'; }
+  else { verdict = '구매 재검토'; col = '#f87171'; msg = '지금은 다시 생각해볼 지출이에요.'; }
+  if (heavy && col === '#4ade80') { verdict = '24시간 보류'; col = '#fbbf24'; msg = '가치는 있지만 순자산 대비 큰 지출이에요. 하루 두고 결정하세요.'; }
+  document.getElementById('gx-buy-result').innerHTML = '<div style="margin-top:14px;padding:16px;border-radius:12px;text-align:center;background:rgba(255,255,255,0.04);border:1px solid ' + col + ';"><div style="font-size:12px;color:var(--muted);">' + gxEsc(name) + ' · ' + gxWon(price) + '</div><div style="font-size:22px;font-weight:800;color:' + col + ';margin:6px 0;">' + verdict + '</div><div style="font-size:12px;color:var(--muted);">' + msg + '</div></div>';
+}
+
+// ── 인생 단계 ──
+function gxRender_level() {
+  var nw = gxNetWorth(), cur = gxLevelOf(nw);
+  document.getElementById('gxBody').innerHTML =
+    gxCard('<div style="font-size:18px;font-weight:700;">LEVEL ' + cur.n + ' · ' + cur.label + '</div><div style="color:var(--muted);font-size:13px;margin-top:4px;">현재 순자산 ' + gxWon(nw) + '</div>') +
+    gxCard(GX_LEVELS.map(function (l) { var reached = nw >= l.min; var active = l.n === cur.n; return '<div style="padding:9px 11px;border-radius:9px;margin-bottom:7px;border:1px solid ' + (active ? '#3b82f6' : 'rgba(255,255,255,0.08)') + ';' + (active ? 'background:rgba(59,130,246,0.08);' : '') + '"><div style="display:flex;justify-content:space-between;font-size:13px;"><span>' + (reached ? '✅ ' : '') + 'LEVEL ' + l.n + '</span><b>' + l.label + '</b></div></div>'; }).join('')) +
+    '<div style="font-size:11px;color:var(--muted);">게임처럼 진행도를 봅니다. 단, 사람의 가치는 자산으로 평가하지 않습니다.</div>';
+}
+
+
+
 // ── 가계부 시작 기점 (전체 월 스캔, 첫 기록일 자동) ──
 function getLedgerStartInfo() {
   let minIso = null, count = 0;
@@ -7144,8 +7412,8 @@ function jarvisGreeting() {
 const DEFAULT_SETTINGS = {
   theme: 'dark', accent: '#3b82f6', bg: 'midnight',
   scale: 100, radius: 10, density: 'comfortable', weekCols: '7',
-  views: { home:true, weekly:true, monthly:true, ledger:true, invest:true, wish:true },
-  viewOrder: ['home','weekly','monthly','ledger','invest','wish'],
+  views: { home:true, weekly:true, monthly:true, ledger:true, invest:true, growth:true, wish:true },
+  viewOrder: ['home','weekly','monthly','ledger','invest','growth','wish'],
 };
 const VIEW_META = {
   home:    { label: '홈',       icon: '🏠' },
@@ -7153,6 +7421,7 @@ const VIEW_META = {
   monthly: { label: 'Monthly', icon: '📆' },
   ledger:  { label: '가계부',   icon: '💰' },
   invest:  { label: '투자',     icon: '📈' },
+  growth:  { label: '성장',     icon: '🌱' },
   wish:    { label: '살 품목',  icon: '🛒' },
 };
 const ACCENTS = ['#3b82f6','#8b5cf6','#ec4899','#ef4444','#f59e0b','#10b981','#14b8a6','#6366f1'];
