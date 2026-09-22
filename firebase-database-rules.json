@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "dahoon": {
+      ".read": "auth != null && auth.token.email == 'jftgj00625@gmail.com'",
+      ".write": "auth != null && auth.token.email == 'jftgj00625@gmail.com'"
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

@@ -1,0 +1,23 @@
+name: 다훈 플래너 알림
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 매일 21:00 (한국시간) = 12:00 UTC
+  workflow_dispatch: {}      # 액션 탭에서 수동 실행(테스트)용
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        working-directory: notify
+        run: npm install
+      - name: Send notification
+        working-directory: notify
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node send.js
