@@ -5261,6 +5261,14 @@ function renderGoalPlan() {
   box.innerHTML = html;
 }
 
+// 마일스톤 축하: 처음 달성하는 순간 1회만 토스트 (플래그로 중복 방지, 원상복귀 시 리셋)
+function celebrateMilestone(key, achieved, msg) {
+  const cur = dashVal(key) === '1';
+  if (achieved && !cur) { dbSet(key, '1'); try { toast(msg); } catch(e) {} try { if (navigator.vibrate) navigator.vibrate([40, 60, 40]); } catch(e) {} return true; }
+  if (!achieved && cur) { dbSet(key, ''); }
+  return false;
+}
+
 // ── 부채(카드·대출) 상환: 상환 기간 동안 저축 여력이 상환액만큼 줄어듦 ──
 function debtVals() {
   const num = k => { const v = parseFloat(dashVal(k)); return isNaN(v) ? null : v; };
@@ -5284,10 +5292,19 @@ function renderDebt() {
   const setv = (id, val) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = val; };
   setv('debtStart', d.start || ''); setv('debtBalance', d.balance || ''); setv('debtPayment', d.payment || '');
   const body = document.getElementById('debtBody'); if (!body) return;
-  if (!(d.balance > 0 && d.payment > 0)) {
-    body.innerHTML = '<span style="color:var(--muted);font-size:12px;">최초·남은 잔액과 매월 상환액을 넣으면 상환 진행률과 완료 시점, 상환 기간 동안 줄어드는 여유자금이 계산돼요.</span>';
+  // 완납 상태 (최초 잔액이 있었고 남은 잔액 0) → 축하 배너 + 1회 알림
+  if (d.start > 0 && d.balance <= 0) {
+    body.innerHTML = '<div class="dash-bar"><div class="dash-bar-fill" style="width:100%;background:#4ade80;"></div></div>'
+      + '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(74,222,128,0.12);font-size:13px;color:#4ade80;line-height:1.6;">🎉 <b>카드빚 완납 완료!</b> 이제 매달 여유자금이 온전히 저축·투자로 돌아와요. 다음은 비상금 → 목표(1억)입니다.</div>';
+    celebrateMilestone('card_done_celebrated', true, '🎉 카드빚 완납 완료! 축하해요 👏');
     return;
   }
+  if (!(d.balance > 0 && d.payment > 0)) {
+    body.innerHTML = '<span style="color:var(--muted);font-size:12px;">최초·남은 잔액과 매월 상환액을 넣으면 상환 진행률과 완료 시점, 상환 기간 동안 줄어드는 여유자금이 계산돼요.</span>';
+    celebrateMilestone('card_done_celebrated', false, '');
+    return;
+  }
+  celebrateMilestone('card_done_celebrated', false, '');   // 아직 상환 중 → 플래그 리셋
   const now = new Date();
   let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
   const income = monthlyIncomeBasis(led).amount;
@@ -5343,11 +5360,13 @@ function renderEmf() {
 
   if (!(v.goal && v.goal > 0)) {
     body.innerHTML = '<div style="font-size:12px;color:var(--muted);line-height:1.7;">목표 금액을 정해보세요.<br>권장: <b style="color:var(--text);">약 ' + wonFmt(suggested) + '</b> (3개월 생활비 기준) ~ ' + wonFmt(suggested * 2) + ' (6개월)</div>';
+    celebrateMilestone('emf_done_celebrated', false, '');
     return;
   }
   const saved = Math.min(v.saved, v.goal);
   const pct = Math.round(saved / v.goal * 100);
   const remain = Math.max(0, v.goal - v.saved);
+  celebrateMilestone('emf_done_celebrated', remain <= 0, '🎉 비상금 목표 달성! 든든한 안전망이 생겼어요 🛟');
   // 부채 상환 중이면 여유가 적으므로 현재 실질 여유로 계산
   const dInfo = debtInfo();
   const freeNow = dInfo.months ? Math.max(0, capacity - dInfo.payment) : capacity;
