@@ -1266,27 +1266,28 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 
       <!-- ③ 탭: 일별 / 전체 -->
       <div style="display:flex;gap:0;margin-bottom:12px;background:rgba(255,255,255,0.04);border-radius:8px;padding:3px;width:fit-content;">
-        <button id="tabAll"   onclick="setLedgerTab('all')"   style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:var(--accent);color:white;">전체</button>
-        <button id="tabDaily" onclick="setLedgerTab('daily')" style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">일별 보기</button>
+        <button id="tabAll"   onclick="setLedgerTab('all')"   style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">전체</button>
+        <button id="tabDaily" onclick="setLedgerTab('daily')" style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:var(--accent);color:white;">일별 보기</button>
         <button id="tabWeek"  onclick="setLedgerTab('week')"  style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">주간 보기</button>
         <button id="tabCal"   onclick="setLedgerTab('cal')"   style="padding:6px 18px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;background:transparent;color:var(--muted);">📅 달력</button>
       </div>
 
-      <!-- ④ 입력 행 -->
-      <div style="display:grid;grid-template-columns:90px 1fr 130px 120px 80px;gap:8px;margin-bottom:12px;align-items:center;">
-        <select id="ledgerType" style="padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
+      <!-- ④ 입력 행 (날짜 지정 가능 · 모바일에서 줄바꿈) -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;">
+        <select id="ledgerType" style="flex:0 0 84px;padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
           <option value="expense">💸 지출</option>
           <option value="income">💵 수입</option>
           <option value="saving">🐷 저축</option>
         </select>
-        <input type="text" id="ledgerDesc" placeholder="내용 (예: 점심식사, 교통비...)" style="padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
-        <select id="ledgerCategory" style="padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
+        <input type="date" id="ledgerDate" title="거래 날짜" style="flex:0 0 138px;padding:7px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;color-scheme:dark;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
+        <input type="text" id="ledgerDesc" placeholder="내용 (예: 점심식사, 교통비...)" style="flex:1 1 150px;min-width:120px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
+        <select id="ledgerCategory" style="flex:0 0 120px;padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
           <option>🍽 식비</option><option>🚌 교통</option><option>🏠 주거</option>
           <option>🎉 여가</option><option>👗 쇼핑</option><option>💊 의료</option>
           <option>📚 교육</option><option>💰 저축</option><option>💼 급여</option><option>📦 기타</option>
         </select>
-        <input type="number" id="ledgerAmount" placeholder="금액" style="padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;text-align:right;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
-        <button onclick="addLedgerRow()" style="padding:9px 14px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.35);color:white;border-radius:6px;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">+ 추가</button>
+        <input type="number" id="ledgerAmount" placeholder="금액" style="flex:0 0 106px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;text-align:right;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
+        <button onclick="addLedgerRow()" style="flex:0 0 auto;padding:9px 14px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.35);color:white;border-radius:6px;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">+ 추가</button>
       </div>
 
       <!-- ⑤ 내역 테이블 -->
@@ -2679,7 +2680,7 @@ async function load() {
 // ── 가계부 ──
 let ledgerData = [];
 let ledgerCurrent = new Date();
-let ledgerTab = 'all'; // all | daily | week | cal
+let ledgerTab = 'daily'; // all | daily | week | cal — 기본을 일별 집계로
 let selectedCalDay = null; // 달력 탭에서 선택한 날짜(일)
 
 function setLedgerTab(tab) {
@@ -2735,6 +2736,9 @@ async function loadLedger() {
   try { ledgerData = raw ? JSON.parse(raw) : []; } catch(e) { ledgerData = []; }
   const bi = document.getElementById('budgetInput');
   if (bi) bi.value = budget;
+  // 입력 날짜칸 기본값을 오늘로 (사용자가 과거 날짜로 바꿔 몰아 입력 가능)
+  const dEl = document.getElementById('ledgerDate');
+  if (dEl && !dEl.value) dEl.value = dateToKey(new Date());
   renderLedger();
 }
 
@@ -2744,13 +2748,37 @@ function addLedgerRow() {
   const cat  = document.getElementById('ledgerCategory').value;
   const amt  = parseInt(document.getElementById('ledgerAmount').value);
   if (!desc || !amt || amt <= 0) { alert('내용과 금액을 입력해주세요!'); return; }
-  const today = new Date();
-  const iso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const dateStr = `${String(today.getMonth()+1).padStart(2,'0')}/${String(today.getDate()).padStart(2,'0')}`;
-  ledgerData.unshift({ id: Date.now(), date: dateStr, iso, type, desc, cat, amt });
+  // 거래 날짜: 입력칸에서 선택(없으면 오늘) → 몰아서 입력해도 실제 날짜로 기록됨
+  const dEl = document.getElementById('ledgerDate');
+  let d = (dEl && dEl.value) ? new Date(dEl.value + 'T12:00:00') : new Date();
+  if (isNaN(d.getTime())) d = new Date();
+  const y = d.getFullYear(), mo = d.getMonth();
+  const iso = `${y}-${String(mo+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const dateStr = `${String(mo+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  const rec = { id: Date.now(), date: dateStr, iso, type, desc, cat, amt };
+  if (y === ledgerCurrent.getFullYear() && mo === ledgerCurrent.getMonth()) {
+    // 현재 보고 있는 달 → 평소대로
+    ledgerData.unshift(rec);
+    saveLedger(); renderLedger();
+  } else {
+    // 다른 달 날짜 → 해당 달 가계부에 직접 기록 (현재 화면은 유지)
+    addRecordToMonth(y, mo, rec);
+    toast(`${mo+1}월 ${d.getDate()}일 내역으로 기록했어요`);
+  }
   document.getElementById('ledgerDesc').value = '';
   document.getElementById('ledgerAmount').value = '';
-  saveLedger(); renderLedger();
+  // 같은 날 연속 입력을 위해 날짜칸은 그대로 둠
+  if (typeof renderHome === 'function') { try { renderHome(); } catch(e) {} }
+}
+
+// 특정 (연,월) 가계부 버킷에 레코드 추가 — 월별 저장 구조(ledger-Y-M) 정합성 유지
+function addRecordToMonth(y, mo, rec) {
+  const key = 'ledger-' + y + '-' + mo;
+  let arr = [];
+  try { arr = JSON.parse(dashVal(key) || '[]'); } catch(e) { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  arr.unshift(rec);
+  dbSet(key, JSON.stringify(arr));   // localStorage + remoteSnapshot + 전 기기 동기화
 }
 
 function deleteLedgerRow(id) {
@@ -3086,6 +3114,10 @@ function editLedgerRow(id) {
           </select>
         </div>
         <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">날짜</div>
+          <input id="edit-date" type="date" value="${(row.iso&&/^\d{4}-\d{2}-\d{2}$/.test(row.iso))?row.iso:''}" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;color-scheme:dark;outline:none;" />
+        </div>
+        <div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">내용</div>
           <input id="edit-desc" type="text" value="${row.desc}" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none;" />
         </div>
@@ -3115,8 +3147,28 @@ function editLedgerRow(id) {
     row.desc = desc;
     row.cat  = overlay.querySelector('#edit-cat').value;
     row.amt  = amt;
+    // 날짜 수정 반영 (오늘로 뭉친 내역을 올바른 날짜로 옮길 수 있음)
+    let moved = false;
+    const dv = overlay.querySelector('#edit-date').value;
+    if (dv && /^\d{4}-\d{2}-\d{2}$/.test(dv)) {
+      const nd = new Date(dv + 'T12:00:00');
+      if (!isNaN(nd.getTime())) {
+        const ny = nd.getFullYear(), nm = nd.getMonth();
+        row.iso = `${ny}-${String(nm+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+        row.date = `${String(nm+1).padStart(2,'0')}/${String(nd.getDate()).padStart(2,'0')}`;
+        if (ny !== ledgerCurrent.getFullYear() || nm !== ledgerCurrent.getMonth()) {
+          // 다른 달로 이동 → 현재 버킷에서 빼고 대상 달 버킷에 넣음
+          ledgerData = ledgerData.filter(r => r.id !== row.id);
+          saveLedger();
+          addRecordToMonth(ny, nm, row);
+          moved = true;
+        }
+      }
+    }
     overlay.remove();
-    saveLedger(); renderLedger();
+    if (moved) { renderLedger(); toast(`${row.date} 내역으로 옮겼어요`); }
+    else { saveLedger(); renderLedger(); }
+    if (typeof renderHome === 'function') { try { renderHome(); } catch(e) {} }
   });
 }
 
