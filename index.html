@@ -2101,6 +2101,26 @@ function friendlyAuthError(code) {
   return map[code] || ('오류: ' + code);
 }
 
+function authWithTimeout(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({ code: '__timeout' }), ms))]);
+}
+// 로그인: 1차는 선택한 지속성으로, 멈추거나 저장소 오류면 메모리 지속성으로 재시도(이 접속만 로그인)
+async function signInResilient(email, pw) {
+  try {
+    await authWithTimeout(firebase.auth().signInWithEmailAndPassword(email, pw), 9000);
+  } catch(e) {
+    const code = (e && e.code) || '';
+    // IndexedDB 등 영구 저장소가 멈춰 로그인이 걸리는 기기 우회 (일부 모바일 브라우저)
+    if (code === '__timeout' || code === 'auth/web-storage-unsupported' || code === 'auth/internal-error') {
+      try { await authWithTimeout(firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE), 3000); } catch(_) {}
+      await authWithTimeout(firebase.auth().signInWithEmailAndPassword(email, pw), 12000);
+      try { toast('이 기기는 로그인 유지가 어려워 이번 접속만 로그인됐어요. 다음에 다시 로그인해 주세요.'); } catch(_) {}
+    } else {
+      throw e;
+    }
+  }
+}
+
 async function doAuth() {
   // 로컬 파일(file://)이나 비보안 컨텍스트에서는 Firebase 인증이 동작하지 않음
   if (location.protocol === 'file:') {
@@ -2134,23 +2154,18 @@ async function doAuth() {
   } catch(e) {}
 
   try {
-    let action;
     if (authMode === 'signup') {
       // 소유자 전용 앱: 소유자 이메일로만 가입 허용 (불필요한 계정 생성 차단)
       if (email !== OWNER_EMAIL.toLowerCase()) { throw { code: '__owner_only' }; }
       const pw2 = document.getElementById('loginPw2').value;
       if (pw.length < 6) { throw { code: '__pw_short' }; }
       if (pw !== pw2) { throw { code: '__pw_mismatch' }; }
-      action = firebase.auth().createUserWithEmailAndPassword(email, pw);
+      await authWithTimeout(firebase.auth().createUserWithEmailAndPassword(email, pw), 15000);
       // onAuthStateChanged 가 나머지를 처리
     } else {
-      action = firebase.auth().signInWithEmailAndPassword(email, pw);
+      // 멈추면 메모리 지속성으로 자동 재시도 (모바일 IndexedDB 스톨 대응)
+      await signInResilient(email, pw);
     }
-    // 인증이 응답 없이 멈춰도 UI가 영원히 막히지 않도록 타임아웃 (모바일 스톨 대응)
-    await Promise.race([
-      action,
-      new Promise((_, rej) => setTimeout(() => rej({ code: '__timeout' }), 20000))
-    ]);
   } catch(e) {
     const code = (e && e.code) || '';
     if (code === '__owner_only') authError('이 플래너는 소유자 전용입니다. 등록된 소유자 이메일로만 가입할 수 있어요.');
