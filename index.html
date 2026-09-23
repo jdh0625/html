@@ -2066,7 +2066,9 @@ let appDataLoaded = false;
 
 function authError(msg) {
   const err = document.getElementById('loginError');
-  if (err) { err.textContent = msg; setTimeout(() => { if (err.textContent === msg) err.textContent = ''; }, 5000); }
+  // 오류 원인은 다음 로그인 시도 때까지 남겨둠(모바일에서 읽기 전에 사라지던 문제 방지).
+  // doAuth 시작 시 authError('')로 지우므로 재시도하면 자동으로 초기화됨.
+  if (err) err.textContent = msg;
 }
 
 // 로그인/회원가입 모드 전환
