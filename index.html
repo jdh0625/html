@@ -1435,6 +1435,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
     <!-- ── 살 품목 / 꿈 목록 뷰 ── -->
     <div id="growthView" class="hidden"></div>
 
+    <div id="reportView" class="hidden"></div>
+
     <div id="wishView" class="hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div>
@@ -2207,7 +2209,7 @@ function enterApp(user) {
   currentUser = user;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('active');
-  try { showView('growth'); } catch(e) {}   // 🌱 성장(비전 대시보드)을 메인 랜딩으로
+  try { showView(drLandingView()); } catch(e) {}   // 🌱 성장(비전 대시보드) 메인 랜딩 / 알림 탭이면 해당 화면
   const label = document.getElementById('userLabel');
   if (label) label.textContent = user.email ? user.email.split('@')[0] : '사용자';
   attachDataListener();   // 실시간 동기화는 인증 이후에만
@@ -2240,7 +2242,7 @@ const days = ['월','화','수','목','금','토','일'];
 let currentTextarea = null, currentKey = null;
 
 function showView(v) {
-  ['home','weekly','monthly','ledger','invest','growth','wish'].forEach(name => {
+  Object.keys(VIEW_META).forEach(name => {
     const el = document.getElementById(name + 'View');
     if (el) el.classList.add('hidden');
   });
@@ -2250,6 +2252,7 @@ function showView(v) {
   if (v === 'ledger') loadLedger();
   if (v === 'invest') renderInvest();
   if (v === 'growth') renderGrowth();
+  if (v === 'report') renderReport();
   if (v === 'wish') { renderWish(); renderMeetingLogs(); }
 }
 
@@ -2495,6 +2498,7 @@ let listenerBackoff = 1000;
 function handleRemoteData(snapshot) {
   const data = snapshot.val() || {};
   remoteSnapshot = data;
+  window._dhRemoteReady = true;   // 네이티브 결제 수신·보고서 생성은 원격 데이터 로드 후에만
   listenerBackoff = 1000;   // 정상 수신되면 재시도 백오프 초기화
   document.querySelectorAll('[data-key]').forEach(el => {
     if (document.activeElement === el) return;   // 지금 편집 중인 칸은 덮어쓰지 않음
@@ -2513,6 +2517,9 @@ function handleRemoteData(snapshot) {
   if (homeEl && !homeEl.classList.contains('hidden') && typeof renderHome === 'function') renderHome();
   const growthEl = document.getElementById('growthView');
   if (growthEl && !growthEl.classList.contains('hidden') && typeof renderGrowth === 'function') { try { renderGrowth(); } catch(e) {} }
+  const reportEl = document.getElementById('reportView');
+  if (reportEl && !reportEl.classList.contains('hidden') && typeof renderReport === 'function') { try { renderReport(); } catch(e) {} }
+  try { dhNativePing(); } catch(e) {}
   // JSON blob 컬렉션(가계부·투자·회의록)도 원격 변경 반영 — 다기기 편집 유실 방지
   try { refreshBlobCollections(data); } catch(e) {}
 }
@@ -2988,14 +2995,17 @@ function renderLedger() {
     return;
   }
 
-  let rows = [...ledgerData];
+  // 날짜 최신순(같은 날은 최근 입력순) — 백데이트/자동기록이 섞여도 순서가 흐트러지지 않게
+  const yOf = (typeof ledgerCurrent !== 'undefined' && ledgerCurrent) ? ledgerCurrent.getFullYear() : new Date().getFullYear();
+  const dayKey = r => drIsoOf(r, yOf) || '';
+  let rows = [...ledgerData].sort((a, b) => dayKey(b).localeCompare(dayKey(a)) || (b.id || 0) - (a.id || 0));
   let html = '';
 
   if (ledgerTab === 'daily') {
     // 날짜별 그룹
     const groups = {};
     rows.forEach(r => {
-      const k = r.iso || r.date;
+      const k = dayKey(r) || r.date;
       if (!groups[k]) groups[k] = [];
       groups[k].push(r);
     });
@@ -3671,7 +3681,7 @@ function showViewMobile(v) {
 const _origShowView = showView;
 showView = function(v) {
   _origShowView(v);
-  ['home','weekly','monthly','ledger','invest','wish'].forEach(name => {
+  Object.keys(VIEW_META).forEach(name => {
     const btn = document.getElementById('bnav-' + name);
     if (btn) btn.classList.toggle('active', name === v);
   });
@@ -5072,7 +5082,8 @@ function gxRender_summary() {
     gxRow('비상자금', need > 0 ? emf.toFixed(1) + '개월' : '생활비 입력 필요') +
     gxBtn('저장', 'gxSaveAssets()'));
 
-  document.getElementById('gxBody').innerHTML = hero + pathCard + todayCard + weekCard + assetCard;
+  let strip = ''; try { strip = drSummaryStrip(); } catch (e) {}
+  document.getElementById('gxBody').innerHTML = strip + hero + pathCard + todayCard + weekCard + assetCard;
 }
 function gxSaveVision() {
   var d = gxData();
@@ -5304,6 +5315,369 @@ function gxRender_level() {
     gxCard(GX_LEVELS.map(function (l) { var reached = nw >= l.min; var active = l.n === cur.n; return '<div style="padding:9px 11px;border-radius:9px;margin-bottom:7px;border:1px solid ' + (active ? '#3b82f6' : 'rgba(255,255,255,0.08)') + ';' + (active ? 'background:rgba(59,130,246,0.08);' : '') + '"><div style="display:flex;justify-content:space-between;font-size:13px;"><span>' + (reached ? '✅ ' : '') + 'LEVEL ' + l.n + '</span><b>' + l.label + '</b></div></div>'; }).join('')) +
     '<div style="font-size:11px;color:var(--muted);">게임처럼 진행도를 봅니다. 단, 사람의 가치는 자산으로 평가하지 않습니다.</div>';
 }
+
+/* ════════════ 📊 보고서·브리핑(자비스) 엔진 + 네이티브 연동 ════════════
+ * - 아침 7시 브리핑 / 저녁 9시 하루 결산 / 주간(금요일, 공휴일이면 직전 영업일 18시) / 월간(말일 21시)
+ * - 보고서는 기간이 끝나면 앱을 열 때 자동 생성되어 'reports' 에 누적 보관(Firebase 동기화)
+ * - DHPLAN 네이티브 앱이면 window.DHPLAN 으로 결제 대기열 수신·알림 예약 */
+
+// 한국 공휴일(대체·임시 포함) — 2026-09 이후분은 공식 월력요항 기반 2개 출처 교차확인
+const KR_HOLIDAYS = new Set([
+  '2026-09-24', '2026-09-25', '2026-09-26', '2026-10-03', '2026-10-05', '2026-10-09', '2026-12-25',
+  '2027-01-01', '2027-02-06', '2027-02-07', '2027-02-08', '2027-02-09', '2027-03-01', '2027-05-01', '2027-05-03',
+  '2027-05-05', '2027-05-13', '2027-06-06', '2027-07-17', '2027-07-19', '2027-08-15', '2027-08-16',
+  '2027-09-14', '2027-09-15', '2027-09-16', '2027-10-03', '2027-10-04', '2027-10-09', '2027-10-11',
+  '2027-12-25', '2027-12-27'
+]);
+const DR_DOW = ['일', '월', '화', '수', '목', '금', '토'];
+function drIso(d) { return dateToKey(d); }
+function drParse(iso) { const p = iso.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function drAdd(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function drMonday(d) { const x = new Date(d); const g = x.getDay(); x.setDate(x.getDate() + (g === 0 ? -6 : 1 - g)); x.setHours(0, 0, 0, 0); return x; }
+function drIsBiz(d) { const g = d.getDay(); return g >= 1 && g <= 5 && !KR_HOLIDAYS.has(drIso(d)); }
+// 그 주의 보고일: 금요일, 공휴일이면 직전 영업일(같은 주 안)
+function drReportDay(anyDay) { const mon = drMonday(anyDay); for (let i = 4; i >= 0; i--) { const x = drAdd(mon, i); if (drIsBiz(x)) return x; } return drAdd(mon, 4); }
+function drLastDay(y, m) { return new Date(y, m + 1, 0); }
+function drMD(d) { return (d.getMonth() + 1) + '/' + d.getDate() + '(' + DR_DOW[d.getDay()] + ')'; }
+function drPct(a, b) { return b > 0 ? Math.round((a - b) / b * 100) : null; }
+function drWon(n) { return Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원'; }
+
+// 레코드의 날짜(iso): iso 우선, 없으면 "MM/DD" + 원장 연도
+function drIsoOf(r, y) {
+  if (r && typeof r.iso === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.iso)) return r.iso;
+  if (r && typeof r.date === 'string') { const m = r.date.match(/(\d{1,2})\D+(\d{1,2})/); if (m) return y + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0'); }
+  return null;
+}
+// 기간 내 가계부 기록 (월 경계 자동 처리)
+function drLedgerRange(startIso, endIso) {
+  const rows = [];
+  let y = +startIso.slice(0, 4), m = +startIso.slice(5, 7) - 1;
+  const ey = +endIso.slice(0, 4), em = +endIso.slice(5, 7) - 1;
+  for (let guard = 0; guard < 24; guard++) {
+    let arr = []; try { arr = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch (e) {}
+    if (Array.isArray(arr)) arr.forEach(r => { const k = drIsoOf(r, y); if (k && k >= startIso && k <= endIso) rows.push(Object.assign({}, r, { _iso: k })); });
+    if (y === ey && m === em) break;
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  return rows;
+}
+// 기간 통계 (돈 + 성장)
+function drStats(startIso, endIso) {
+  const rows = drLedgerRange(startIso, endIso);
+  const sum = t => rows.filter(r => r.type === t).reduce((s, r) => s + (Number(r.amt) || 0), 0);
+  const exp = sum('expense'), inc = sum('income'), sav = sum('saving');
+  const byCat = {};
+  rows.filter(r => r.type === 'expense').forEach(r => { const c = r.cat || '💳 기타'; byCat[c] = (byCat[c] || 0) + (Number(r.amt) || 0); });
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const todayIso = drIso(new Date());
+  const lastIso = endIso < todayIso ? endIso : todayIso;
+  const spend = new Set(rows.filter(r => r.type === 'expense' && (Number(r.amt) || 0) > 0).map(r => r._iso));
+  let days = 0, noSpend = 0, workout = 0, study = 0, eng = 0, read = 0, sleepSum = 0, sleepN = 0, mindDays = 0;
+  const g = (typeof gxData === 'function') ? gxData() : null;
+  for (let d = drParse(startIso); drIso(d) <= lastIso; d = drAdd(d, 1)) {
+    const k = drIso(d); days++;
+    if (!spend.has(k)) noSpend++;
+    if (!g) continue;
+    const wk = g.workouts[drIso(drMonday(d))];
+    const dn = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
+    const w = wk && wk.days && wk.days[dn]; if (w && (w.s || w.c || w.w)) workout++;
+    const st = g.study[k]; if (st) Object.keys(st).forEach(c => { const v = Number(st[c]) || 0; study += v; if (c === '영어') eng += v; if (c === '책') read += v; });
+    const h = g.health[k]; if (h && Number(h.sleep) > 0) { sleepSum += Number(h.sleep); sleepN++; }
+    const mi = g.mind[k]; if (mi && (mi.action || mi.worry)) mindDays++;
+  }
+  return { startIso, endIso, exp, inc, sav, net: inc - exp - sav, cats, count: rows.length, days, noSpend, workout, study, eng, read, sleepAvg: sleepN ? sleepSum / sleepN : 0, mindDays };
+}
+function drBudget(y, m) {
+  let goals = {}; try { goals = JSON.parse(dashVal('budget_goals') || '{}'); } catch (e) {}
+  return parseInt(dashVal('budget-' + y + '-' + m) || goals.monthly || 0) || 0;
+}
+function drFixed() { try { return fixedTotal(); } catch (e) { return 0; } }
+
+// 개선 조언 (규칙 기반, 짧고 실행 가능하게)
+function drAdvice(cur, prev, kind) {
+  const a = [];
+  const top = cur.cats[0];
+  const p = drPct(cur.exp, prev ? prev.exp : 0);
+  if (p !== null && p >= 15) a.push('지출이 지난 ' + (kind === 'month' ? '달' : '주') + '보다 ' + p + '% 늘었어요.' + (top ? ' 가장 큰 항목 ' + top[0] + '부터 줄여보세요.' : ''));
+  else if (p !== null && p <= -10) a.push('지출을 ' + Math.abs(p) + '% 줄였어요 👏 이 흐름을 유지하세요.');
+  if (top && cur.exp > 0 && top[1] / cur.exp >= 0.35) a.push(top[0] + '가 지출의 ' + Math.round(top[1] / cur.exp * 100) + '%예요. 다음 ' + (kind === 'month' ? '달' : '주') + ' ' + top[0] + ' 한도를 정해두세요.');
+  if (cur.inc > 0) { const r = Math.round((cur.inc - cur.exp) / cur.inc * 100); if (kind === 'month' && r < 20) a.push('저축률 ' + r + '% — 목표 20% 이상. 고정비 외 변동지출을 먼저 점검하세요.'); }
+  else if (kind === 'month' && cur.exp > 0) a.push('수입 기록이 없어요. 월급 등 수입도 기록해야 저축률이 정확해져요.');
+  if (kind === 'week') {
+    if (cur.noSpend < 2) a.push('무지출 데이 ' + cur.noSpend + '일 — 다음 주 2일 이상 도전하세요.');
+    if (cur.workout < 3) a.push('운동 ' + cur.workout + '일 — 주 3회까지 ' + (3 - cur.workout) + '일 부족해요.');
+    const tgt = (typeof gxData === 'function' ? (Number(gxData().targets.eng) || 20) : 20) * Math.min(5, cur.days);
+    if (cur.eng < tgt) a.push('영어 ' + cur.eng + '분 (목표 ' + tgt + '분). 출퇴근 20분을 영어에 고정하세요.');
+  }
+  if (!cur.study && kind !== 'day') a.push('공부 기록이 없어요. 하루 30분이라도 기록부터 시작하세요.');
+  if (!a.length) a.push('균형 잡힌 ' + (kind === 'month' ? '한 달' : '한 주') + '이었어요. 지금 페이스를 유지하세요.');
+  return a;
+}
+function drMoneyLines(s, prev, label) {
+  const L = [];
+  const p = drPct(s.exp, prev ? prev.exp : 0);
+  L.push('💸 지출 ' + drWon(s.exp) + (p === null ? '' : ' (' + label + ' 대비 ' + (p >= 0 ? '▲' : '▼') + Math.abs(p) + '%)'));
+  L.push('💰 수입 ' + drWon(s.inc) + (s.sav ? ' · 🐷 저축 ' + drWon(s.sav) : ''));
+  if (s.cats.length) L.push('🏷 많이 쓴 곳: ' + s.cats.slice(0, 3).map(c => c[0] + ' ' + drWon(c[1])).join(', '));
+  L.push('🟢 무지출 ' + s.noSpend + '일 / ' + s.days + '일');
+  return L;
+}
+function drGrowthLines(s) {
+  return ['🏃 운동 ' + s.workout + '일 · 📚 공부 ' + s.study + '분 (영어 ' + s.eng + '분 · 독서 ' + s.read + '분)' + (s.sleepAvg ? ' · 😴 평균 수면 ' + s.sleepAvg.toFixed(1) + 'h' : '')];
+}
+
+// ── 보고서 생성기 ──
+function drBuildDaily(iso) {
+  const s = drStats(iso, iso), d = drParse(iso);
+  const daily = parseInt(dashVal('daily_budget') || 0) || 0;
+  const lines = drMoneyLines(s, null, '').slice(0, 3);
+  if (daily) lines.push(s.exp <= daily ? '✅ 하루 예산 ' + drWon(daily) + ' 안에서 ' + drWon(daily - s.exp) + ' 남겼어요' : '⚠ 하루 예산을 ' + drWon(s.exp - daily) + ' 넘었어요');
+  lines.push(...drGrowthLines(s));
+  const adv = [];
+  if (!s.exp) adv.push('무지출 데이 성공 🎉');
+  if (!s.workout) adv.push('내일은 20분이라도 운동하세요.');
+  if (!s.study) adv.push('내일 공부 30분을 먼저 잡아두세요.');
+  if (!adv.length) adv.push('오늘 잘 해냈어요. 내일도 같은 리듬으로.');
+  return { id: 'daily-' + iso, type: 'daily', title: '📋 ' + drMD(d) + ' 하루 결산', period: iso, created: Date.now(), lines, advice: adv, m: { exp: s.exp, inc: s.inc } };
+}
+function drWeekPeriod(anyDay) {
+  const rd = drReportDay(anyDay), prd = drReportDay(drAdd(drMonday(anyDay), -7));
+  return { start: drAdd(prd, 1), end: rd, key: drIso(drMonday(anyDay)) };
+}
+function drBuildWeekly(anyDay) {
+  const w = drWeekPeriod(anyDay), pw = drWeekPeriod(drAdd(drMonday(anyDay), -7));
+  const s = drStats(drIso(w.start), drIso(w.end)), ps = drStats(drIso(pw.start), drIso(pw.end));
+  const lines = drMoneyLines(s, ps, '지난주').concat(drGrowthLines(s));
+  const diff = s.exp - ps.exp;
+  const headline = ps.exp > 0 ? (diff <= 0 ? '지난주보다 ' + drWon(-diff) + ' 덜 썼어요 👏' : '지난주보다 ' + drWon(diff) + ' 더 썼어요') : '이번 주 지출 ' + drWon(s.exp);
+  return { id: 'weekly-' + w.key, type: 'weekly', title: '🗓 주간 보고서 · ' + drMD(w.start) + '~' + drMD(w.end), period: drIso(w.start) + '~' + drIso(w.end), created: Date.now(), headline, lines, advice: drAdvice(s, ps, 'week'), m: { exp: s.exp, inc: s.inc, prevExp: ps.exp } };
+}
+function drBuildMonthly(y, m) {
+  const start = new Date(y, m, 1), end = drLastDay(y, m);
+  const pm = m === 0 ? 11 : m - 1, py = m === 0 ? y - 1 : y;
+  const s = drStats(drIso(start), drIso(end)), ps = drStats(drIso(new Date(py, pm, 1)), drIso(drLastDay(py, pm)));
+  const budget = drBudget(y, m), fixed = drFixed();
+  const lines = drMoneyLines(s, ps, '지난달').concat(drGrowthLines(s));
+  if (budget) lines.push((s.exp <= budget ? '✅ 예산 ' + drWon(budget) + ' 중 ' + drWon(budget - s.exp) + ' 남김' : '⚠ 예산 ' + drWon(budget) + ' 초과 ' + drWon(s.exp - budget)));
+  if (s.inc > 0) lines.push('📈 저축률 ' + Math.round((s.inc - s.exp) / s.inc * 100) + '%');
+  // 다음 달 준비 플랜
+  const varExp = Math.max(0, s.exp - fixed);
+  const next = [];
+  next.push('고정지출 ' + drWon(fixed) + ' + 변동지출 목표 ' + drWon(Math.round(varExp * 0.9 / 1000) * 1000) + ' (이번 달 −10%)');
+  if (s.cats[0]) next.push(s.cats[0][0] + ' 한도: ' + drWon(Math.round(s.cats[0][1] * 0.85 / 1000) * 1000) + ' (−15%)');
+  try {
+    const g = gxData(), vz = g.vision, nw = gxNetWorth(), span = Number(vz.targetAge) - Number(vz.currentAge);
+    if (span > 0) { const need = gxReqMonthly(Number(vz.targetAsset), nw, span * 12, Number(vz.annualReturn)); if (isFinite(need)) next.push(gxShort(vz.targetAsset) + ' 목표(만 ' + vz.targetAge + '세)까지 매달 ' + gxShort(need) + ' 투자 필요'); }
+  } catch (e) {}
+  const diff = s.exp - ps.exp;
+  const headline = ps.exp > 0 ? (diff <= 0 ? '지난달보다 ' + drWon(-diff) + ' 덜 썼어요 👏' : '지난달보다 ' + drWon(diff) + ' 더 썼어요') : (m + 1) + '월 지출 ' + drWon(s.exp);
+  return { id: 'monthly-' + y + '-' + m, type: 'monthly', title: '📊 ' + (m + 1) + '월 결산 보고서', period: drIso(start) + '~' + drIso(end), created: Date.now(), headline, lines, advice: drAdvice(s, ps, 'month'), next, m: { exp: s.exp, inc: s.inc, prevExp: ps.exp } };
+}
+// 아침 브리핑 텍스트 (알림 본문·보고서 탭 공용)
+function drBriefLines(date) {
+  const L = [], g = (typeof gxData === 'function') ? gxData() : null;
+  const todo = [];
+  if (g) Object.keys(g.plan).forEach(a => { const t = g.plan[a] && g.plan[a].today; if (t && t.trim()) todo.push(a + ': ' + t.trim()); });
+  const tgt = g ? (Number(g.targets.eng) || 20) : 20;
+  todo.push('생각 정리 3질문', '영어 ' + tgt + '분', '운동 20분+', '지출 기록 확인');
+  L.push('✅ 오늘 할 일 — ' + todo.slice(0, 6).join(' / '));
+  const mon = drMonday(date), ws = drStats(drIso(mon), drIso(date));
+  L.push('🗓 이번 주 — 지출 ' + drWon(ws.exp) + ' · 운동 ' + ws.workout + '/3일 · 보고서 ' + drMD(drReportDay(date)) + ' 18시');
+  if (date.getDay() === 1 && g) { const wk = Object.keys(g.plan).map(a => g.plan[a] && g.plan[a].week ? a + ' ' + g.plan[a].week : '').filter(Boolean); if (wk.length) L.push('🎯 이번 주 목표 — ' + wk.join(' / ')); }
+  const y = date.getFullYear(), m = date.getMonth(), budget = drBudget(y, m);
+  if (date.getDate() === 1) {
+    const mp = g ? Object.keys(g.plan).map(a => g.plan[a] && g.plan[a].month ? a + ' ' + g.plan[a].month : '').filter(Boolean) : [];
+    L.push('📅 ' + (m + 1) + '월 시작 — 고정지출 ' + drWon(drFixed()) + (budget ? ' · 예산 ' + drWon(budget) : ' · 이번 달 예산을 정해두세요') + (mp.length ? ' · 월간 목표: ' + mp.join(' / ') : ''));
+  } else {
+    const ms = drStats(drIso(new Date(y, m, 1)), drIso(date));
+    L.push('📅 이번 달 — 지출 ' + drWon(ms.exp) + (budget ? ' / 예산 ' + drWon(budget) + ' (' + Math.round(ms.exp / budget * 100) + '%)' : ''));
+  }
+  return L;
+}
+
+// ── 보관함 ──
+function drGetReports() { try { const a = JSON.parse(dashVal('reports') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function drPutReport(r) {
+  const arr = drGetReports().filter(x => x && x.id !== r.id);
+  arr.unshift(r);
+  arr.sort((a, b) => (b.period || '').localeCompare(a.period || '') || (b.created || 0) - (a.created || 0));
+  dbSet('reports', JSON.stringify(arr.slice(0, 300)));
+}
+// 기간이 끝난(보고 시각이 지난) 보고서를 빠짐없이 생성 — 앱 열 때 호출
+function drEnsureReports() {
+  if (typeof currentUser === 'undefined' || !currentUser || !window._dhRemoteReady) return 0;
+  const now = new Date(), have = new Set(drGetReports().map(r => r.id));
+  let made = 0;
+  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x; };
+  for (let i = 1; i >= 0; i--) { const d = drAdd(now, -i); d.setHours(0, 0, 0, 0); if (now >= at(d, 21) && !have.has('daily-' + drIso(d))) { drPutReport(drBuildDaily(drIso(d))); made++; } }
+  for (let i = 1; i >= 0; i--) { const wd = drAdd(drMonday(now), -7 * i); const rd = drReportDay(wd); if (now >= at(rd, 18) && !have.has('weekly-' + drIso(drMonday(wd)))) { drPutReport(drBuildWeekly(wd)); made++; } }
+  for (let i = 1; i >= 0; i--) { const y = now.getFullYear(), mm = now.getMonth() - i; const md = new Date(y, mm, 1); const ld = drLastDay(md.getFullYear(), md.getMonth()); if (now >= at(ld, 21) && !have.has('monthly-' + md.getFullYear() + '-' + md.getMonth())) { drPutReport(drBuildMonthly(md.getFullYear(), md.getMonth())); made++; } }
+  return made;
+}
+
+// ── 네이티브 알림 예약 (DHPLAN 앱에서만) ──
+function drScheduleNative() {
+  if (!window.DHPLAN || !DHPLAN.schedule) return;
+  const now = new Date(), items = [];
+  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x; };
+  for (let i = 0; i < 7; i++) {
+    const d = drAdd(now, i); d.setHours(0, 0, 0, 0);
+    const b = at(d, 7);
+    if (b > now) items.push({ id: 1000 + i, at: b.getTime(), kind: 'brief', hash: 'growth', title: '☀ 오늘의 브리핑 · ' + drMD(d) + (d.getDate() === 1 ? ' · ' + (d.getMonth() + 1) + '월 시작' : ''), body: drBriefLines(d).join('\n') });
+    const ld = drLastDay(d.getFullYear(), d.getMonth());
+    const e = at(d, 21);
+    if (e > now) {
+      if (drIso(d) === drIso(ld)) items.push({ id: 1300 + i, at: e.getTime(), kind: 'monthly', hash: 'report', title: '📊 ' + (d.getMonth() + 1) + '월 결산 보고서가 도착했어요', body: '이번 달 얼마를 썼는지, 다음 달은 어떻게 준비할지 정리했어요. 탭해서 확인하세요.' });
+      else items.push({ id: 1100 + i, at: e.getTime(), kind: 'daily', hash: 'report', title: '📋 ' + drMD(d) + ' 하루 결산', body: '오늘의 지출·수입·습관을 정리했어요. 탭해서 확인하세요.' });
+    }
+    const rd = drReportDay(d);
+    if (drIso(rd) === drIso(d)) { const w = at(d, 18); if (w > now) items.push({ id: 1200 + i, at: w.getTime(), kind: 'weekly', hash: 'report', title: '🗓 주간 보고서가 도착했어요', body: '이번 주 지출·수입·업무·습관 정리와 개선 포인트예요. 탭해서 확인하세요.' + (KR_HOLIDAYS.has(drIso(drAdd(drMonday(d), 4))) ? ' (금요일 공휴일이라 하루 앞당겼어요)' : '') }); }
+  }
+  // 다음 월말 결산은 7일 창 밖이어도 항상 예약 (앱을 한동안 안 열어도 월간 보고 알림 유지)
+  if (!items.some(x => x.kind === 'monthly')) {
+    let ld = drLastDay(now.getFullYear(), now.getMonth());
+    if (at(ld, 21) <= now) ld = drLastDay(now.getFullYear(), now.getMonth() + 1);
+    items.push({ id: 1310, at: at(ld, 21).getTime(), kind: 'monthly', hash: 'report', title: '📊 ' + (ld.getMonth() + 1) + '월 결산 보고서가 도착했어요', body: '이번 달 얼마를 썼는지, 다음 달은 어떻게 준비할지 정리했어요. 탭해서 확인하세요.' });
+  }
+  try { DHPLAN.schedule(JSON.stringify(items)); } catch (e) {}
+}
+
+// ── 네이티브 결제 대기열 수신 (peek → 기록 → ack, 로그인·로드 후에만) ──
+let _dhPulling = false;
+function drCapSeen(k) { try { return (JSON.parse(localStorage.getItem('dahoon_cap_seen') || '[]')).includes(k); } catch (e) { return false; } }
+function drMarkCap(k) { try { const a = JSON.parse(localStorage.getItem('dahoon_cap_seen') || '[]'); a.push(k); localStorage.setItem('dahoon_cap_seen', JSON.stringify(a.slice(-600))); } catch (e) {} }
+function pullNativePayments() {
+  if (_dhPulling || !window.DHPLAN || !DHPLAN.peekPayments) return;
+  _dhPulling = true;
+  try {
+    let items = []; try { items = JSON.parse(DHPLAN.peekPayments() || '[]'); } catch (e) {}
+    if (!items.length) return;
+    const done = []; let n = 0; const bad = [];
+    items.forEach(it => {
+      const key = String((it && it.k) || ''), raw = String((it && it.t) || ''), ts = Number(it && it.ts) || Date.now();
+      if (!key) return;
+      if (drCapSeen(key)) { done.push(key); return; }
+      const p = parsePaymentSMS(raw);
+      if (!p) { bad.push({ raw, ts }); drMarkCap(key); done.push(key); return; }
+      let cat = detectCategory(p.merchant + ' ' + raw); if (p.type === 'saving') cat = '💰 저축';
+      const desc = p.foreign ? (p.merchant + ' (USD ' + p.foreign.amt + ' · 약 ' + p.foreign.krw.toLocaleString() + '원)') : p.merchant;
+      const when = (p.txDate instanceof Date && !isNaN(p.txDate)) ? p.txDate : new Date(ts);   // 문자 날짜 → 없으면 실제 결제 알림 시각
+      recordExpenseEntry(p.amt, desc, cat, p.type, when, key);
+      drMarkCap(key); done.push(key); n++;
+    });
+    if (bad.length) { let u = []; try { u = JSON.parse(dashVal('pay_unparsed') || '[]'); } catch (e) {} dbSet('pay_unparsed', JSON.stringify(bad.concat(u).slice(0, 50))); }
+    if (done.length) DHPLAN.ackPayments(JSON.stringify(done));
+    if (n) toast('💳 결제 ' + n + '건을 가계부에 자동 기록했어요');
+    if (bad.length) toast('금액을 못 읽은 결제 ' + bad.length + '건 — 보고서 탭에서 확인하세요');
+  } finally { _dhPulling = false; }
+}
+let _dhBootDone = false;
+function dhNativePing() {
+  if (typeof currentUser === 'undefined' || !currentUser || !window._dhRemoteReady) return;
+  try { pullNativePayments(); } catch (e) {}
+  if (!_dhBootDone) {   // 로그인 후 첫 1회: 밀린 보고서 생성 + 알림 예약
+    _dhBootDone = true;
+    try { if (drEnsureReports()) { const rv = document.getElementById('reportView'); if (rv && !rv.classList.contains('hidden')) renderReport(); } } catch (e) {}
+    try { drScheduleNative(); } catch (e) {}
+  }
+}
+// 알림 탭 등 딥링크: #growth / #report / #ledger
+function dhOpen(h) {
+  h = String(h || '').replace('#', '');
+  if (!h || typeof VIEW_META === 'undefined' || !VIEW_META[h]) return;
+  if (h === 'report') { try { drEnsureReports(); } catch (e) {} }
+  showView(h);
+  window.scrollTo(0, 0);
+}
+function drLandingView() { const h = (location.hash || '').replace('#', ''); return (typeof VIEW_META !== 'undefined' && VIEW_META[h]) ? h : 'growth'; }
+
+// ── 토스 스타일 요약 (이번 주·이번 달, 같은 기간 대비) ──
+function drSummaryData() {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const mon = drMonday(now), dayIdx = Math.round((now - mon) / 86400000);
+  const w = drStats(drIso(mon), drIso(now)), pw = drStats(drIso(drAdd(mon, -7)), drIso(drAdd(mon, -7 + dayIdx)));
+  const y = now.getFullYear(), m = now.getMonth(), dom = now.getDate();
+  const pm = m === 0 ? 11 : m - 1, py = m === 0 ? y - 1 : y;
+  const mo = drStats(drIso(new Date(y, m, 1)), drIso(now));
+  const pmo = drStats(drIso(new Date(py, pm, 1)), drIso(new Date(py, pm, Math.min(dom, drLastDay(py, pm).getDate()))));
+  return { w, pw, mo, pmo, budget: drBudget(y, m), m };
+}
+function drDeltaTxt(cur, prev, unit) {
+  if (!prev) return '<span style="color:var(--muted);">비교할 지난 기록 없음</span>';
+  const d = cur - prev;
+  if (d === 0) return '<span style="color:var(--muted);">' + unit + '와 같아요</span>';
+  return d < 0 ? '<span style="color:#4ade80;">' + unit + '보다 ' + drWon(-d) + ' 덜 썼어요</span>' : '<span style="color:#f87171;">' + unit + '보다 ' + drWon(d) + ' 더 썼어요</span>';
+}
+function drSummaryStrip() {
+  const S = drSummaryData();
+  const card = (label, s, delta, extra) =>
+    '<div style="flex:1;min-width:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:16px;padding:14px 15px;">' +
+      '<div style="font-size:13px;color:var(--muted);font-weight:600;">' + label + '</div>' +
+      '<div style="font-size:22px;font-weight:800;margin:4px 0 2px;letter-spacing:-0.5px;">' + drWon(s.exp) + '</div>' +
+      '<div style="font-size:12.5px;line-height:1.5;">' + delta + '</div>' +
+      '<div style="font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.6;">' + extra + '</div></div>';
+  const wExtra = '수입 ' + drWon(S.w.inc) + '<br>무지출 ' + S.w.noSpend + '일 · 운동 ' + S.w.workout + '일';
+  const mExtra = '수입 ' + drWon(S.mo.inc) + (S.mo.inc > 0 ? ' · 저축률 ' + Math.round((S.mo.inc - S.mo.exp) / S.mo.inc * 100) + '%' : '') + '<br>' + (S.budget ? '예산 ' + Math.round(S.mo.exp / S.budget * 100) + '% 사용' : '예산 미설정');
+  return '<div style="display:flex;gap:10px;margin-bottom:14px;">' +
+    card('이번 주는', S.w, drDeltaTxt(S.w.exp, S.pw.exp, '지난주 같은 기간'), wExtra) +
+    card((S.m + 1) + '월은', S.mo, drDeltaTxt(S.mo.exp, S.pmo.exp, '지난달 같은 기간'), mExtra) + '</div>';
+}
+
+// ── 📊 보고서 탭 ──
+let drFilter = 'all', drOpenId = null;
+function drSetFilter(f) { drFilter = f; renderReport(); }
+function drToggle(id) { drOpenId = drOpenId === id ? null : id; renderReport(); }
+function renderReport() {
+  const el = document.getElementById('reportView'); if (!el) return;
+  const all = drGetReports();
+  const list = all.filter(r => drFilter === 'all' || r.type === drFilter);
+  const chip = (f, label) => '<button onclick="drSetFilter(\'' + f + '\')" style="padding:8px 14px;border:none;border-radius:20px;font-size:13px;font-family:inherit;cursor:pointer;' + (drFilter === f ? 'background:#3b82f6;color:#fff;font-weight:700;' : 'background:rgba(255,255,255,0.06);color:var(--muted);') + '">' + label + '</button>';
+  const typeTag = { daily: '하루', weekly: '주간', monthly: '월간' };
+  const rows = list.length ? list.map(r => {
+    const open = drOpenId === r.id;
+    return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;margin-bottom:10px;overflow:hidden;">' +
+      '<div onclick="drToggle(\'' + r.id + '\')" style="padding:14px 15px;cursor:pointer;display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:' + (r.type === 'monthly' ? 'rgba(167,139,250,0.18);color:#c4b5fd' : r.type === 'weekly' ? 'rgba(96,165,250,0.18);color:#93c5fd' : 'rgba(74,222,128,0.14);color:#86efac') + ';">' + (typeTag[r.type] || '') + '</span>' +
+        '<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:700;">' + escHtml(r.title) + '</div>' +
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:2px;">' + (r.headline ? escHtml(r.headline) : '지출 ' + drWon(r.m && r.m.exp) + ' · 수입 ' + drWon(r.m && r.m.inc)) + '</div></div>' +
+        '<span style="color:var(--muted);font-size:14px;">' + (open ? '▲' : '▼') + '</span></div>' +
+      (open ? '<div style="padding:0 15px 15px;font-size:14px;line-height:1.75;">' +
+        (r.lines || []).map(x => '<div>' + escHtml(x) + '</div>').join('') +
+        '<div style="margin-top:10px;padding:11px 12px;border-radius:10px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);"><div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:4px;">🧭 개선 포인트</div>' + (r.advice || []).map(x => '<div style="font-size:13.5px;">• ' + escHtml(x) + '</div>').join('') + '</div>' +
+        (r.next && r.next.length ? '<div style="margin-top:8px;padding:11px 12px;border-radius:10px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);"><div style="font-size:13px;font-weight:700;color:#93c5fd;margin-bottom:4px;">📅 다음 달 준비</div>' + r.next.map(x => '<div style="font-size:13.5px;">• ' + escHtml(x) + '</div>').join('') + '</div>' : '') +
+        '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;">기간 ' + escHtml(r.period || '') + ' · 작성 ' + new Date(r.created || 0).toLocaleString('ko-KR') + '</div></div>' : '') +
+    '</div>';
+  }).join('') : '<div style="padding:28px 10px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7;">아직 보고서가 없어요.<br>하루 결산은 매일 21시, 주간은 금요일(공휴일이면 직전 영업일) 18시,<br>월간은 말일 21시에 자동으로 쌓여요.</div>';
+
+  // 네이티브 상태
+  let status = '';
+  if (window.DHPLAN && DHPLAN.listenerOn) {
+    let on = false, bat = false; try { on = DHPLAN.listenerOn(); bat = DHPLAN.batteryOk(); } catch (e) {}
+    status = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>💳 결제 자동기록</span>' + (on ? '<b style="color:#4ade80;">켜짐</b>' : '<button onclick="DHPLAN.openListenerSettings()" style="padding:6px 12px;border:none;border-radius:8px;background:#ef4444;color:#fff;font-size:13px;font-weight:700;">꺼짐 · 켜기</button>') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>🔋 백그라운드 유지</span>' + (bat ? '<b style="color:#4ade80;">허용됨</b>' : '<button onclick="DHPLAN.openBatterySettings()" style="padding:6px 12px;border:none;border-radius:8px;background:#f59e0b;color:#111;font-size:13px;font-weight:700;">허용하기</button>') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>🔔 알림 시간</span><span style="color:var(--muted);font-size:12.5px;">매일 7시·21시 · 금 18시 · 말일 21시</span></div>' +
+      '<button onclick="drTestNotify()" style="margin-top:8px;width:100%;padding:10px;border:1px solid rgba(255,255,255,0.12);border-radius:10px;background:transparent;color:var(--text);font-size:13.5px;font-family:inherit;">🔔 알림 테스트 보내기</button></div>';
+  }
+  let unp = []; try { unp = JSON.parse(dashVal('pay_unparsed') || '[]'); } catch (e) {}
+  const unpHtml = unp.length ? '<div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:14px;padding:12px 15px;margin-bottom:14px;font-size:13px;"><b style="color:#f87171;">금액을 못 읽은 결제 ' + unp.length + '건</b> — 가계부에 직접 입력해 주세요' + unp.slice(0, 5).map(u => '<div style="color:var(--muted);margin-top:4px;font-size:12px;">' + new Date(u.ts).toLocaleString('ko-KR') + ' · ' + escHtml(String(u.raw).slice(0, 80)) + '</div>').join('') + '<button onclick="dbSet(\'pay_unparsed\',\'[]\');renderReport();" style="margin-top:8px;padding:6px 12px;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--text);font-size:12.5px;">확인 완료</button></div>' : '';
+
+  el.innerHTML =
+    '<h1 style="margin:0 0 4px;font-size:20px;font-weight:800;">📊 보고서</h1>' +
+    '<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">다브스가 매일·매주·매월 정리해 드려요</div>' +
+    drSummaryStrip() + status + unpHtml +
+    '<div style="background:linear-gradient(135deg,rgba(59,130,246,0.14),rgba(139,92,246,0.10));border:1px solid rgba(99,102,241,0.3);border-radius:16px;padding:15px;margin-bottom:16px;">' +
+      '<div style="font-size:15px;font-weight:800;margin-bottom:6px;">☀ 오늘의 브리핑 · ' + drMD(new Date()) + '</div>' +
+      drBriefLines(new Date()).map(x => '<div style="font-size:13.5px;line-height:1.7;">' + escHtml(x) + '</div>').join('') + '</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;">' + chip('all', '전체') + chip('daily', '하루') + chip('weekly', '주간') + chip('monthly', '월간') + '</div>' +
+    rows;
+}
+function drTestNotify() {
+  if (!window.DHPLAN || !DHPLAN.testNotify) { toast('DHPLAN 앱에서만 알림을 보낼 수 있어요'); return; }
+  DHPLAN.testNotify('☀ 오늘의 브리핑 (테스트)', drBriefLines(new Date()).join('\n'), 'report');
+  toast('알림을 보냈어요 — 상단 알림을 확인하세요');
+}
+
 
 
 
@@ -6825,11 +7199,13 @@ function localHelp(text) {
 }
 
 // 가계부에 지출/수입 1건 기록 (여러 곳에서 재사용)
-function recordExpenseEntry(amt, desc, cat, type, when) {
+function recordExpenseEntry(amt, desc, cat, type, when, cap) {
   const d = (when instanceof Date && !isNaN(when)) ? when : new Date();   // 실제 거래일(없으면 오늘)
   const y = d.getFullYear(), m = d.getMonth(), pad = x => String(x).padStart(2, '0');
   const dateStr = pad(m + 1) + '/' + pad(d.getDate());
-  addRecordToMonth(y, m, { id: Date.now(), date: dateStr, iso: dateToKey(d), type: type || 'expense', desc: desc || '지출', cat: cat || '💳 기타', amt: amt });   // 올바른 달에 삽입(월 넘어가도)
+  const rec = { id: Date.now() + Math.floor(Math.random() * 1000), date: dateStr, iso: dateToKey(d), type: type || 'expense', desc: desc || '지출', cat: cat || '💳 기타', amt: amt };
+  if (cap) rec.cap = cap;   // 네이티브 결제 캡처 키(중복 방지)
+  addRecordToMonth(y, m, rec);   // 올바른 달에 삽입(월 넘어가도)
   if (typeof ledgerCurrent !== 'undefined' && ledgerCurrent.getFullYear() === y && ledgerCurrent.getMonth() === m) {
     try { ledgerData = JSON.parse(dashVal('ledger-' + y + '-' + m) || '[]'); } catch (e) {}
     if (typeof renderLedger === 'function') renderLedger();
@@ -7530,8 +7906,8 @@ function jarvisGreeting() {
 const DEFAULT_SETTINGS = {
   theme: 'dark', accent: '#3b82f6', bg: 'midnight',
   scale: 100, radius: 10, density: 'comfortable', weekCols: '7',
-  views: { home:true, weekly:true, monthly:true, ledger:true, invest:true, growth:true, wish:true },
-  viewOrder: ['home','weekly','monthly','ledger','invest','growth','wish'],
+  views: { home:true, weekly:true, monthly:true, ledger:true, invest:true, growth:true, report:true, wish:true },
+  viewOrder: ['home','growth','report','ledger','invest','weekly','monthly','wish'],
 };
 const VIEW_META = {
   home:    { label: '홈',       icon: '🏠' },
@@ -7540,6 +7916,7 @@ const VIEW_META = {
   ledger:  { label: '가계부',   icon: '💰' },
   invest:  { label: '투자',     icon: '📈' },
   growth:  { label: '성장',     icon: '🌱' },
+  report:  { label: '보고서',   icon: '📊' },
   wish:    { label: '살 품목',  icon: '🛒' },
 };
 const ACCENTS = ['#3b82f6','#8b5cf6','#ec4899','#ef4444','#f59e0b','#10b981','#14b8a6','#6366f1'];
@@ -7565,6 +7942,13 @@ function mergeSettings(obj) {
   valid.forEach(v => { if (!order.includes(v)) order.push(v); });
   // 새로 추가된 '홈'은 기존 사용자 설정에도 맨 앞에 오도록 보정
   if (order.includes('home')) { order = ['home'].concat(order.filter(v => v !== 'home')); }
+  // 2026-09-30 1회 이관: 성장·보고서를 하단바(앞 5칸)에 노출
+  if (!obj.navV2) {
+    const pri = ['home','growth','report','ledger','invest'];
+    order = pri.filter(v => order.includes(v)).concat(order.filter(v => !pri.includes(v)));
+    SETTINGS.views.growth = true; SETTINGS.views.report = true;
+    SETTINGS.navV2 = true;
+  }
   SETTINGS.viewOrder = order;
 }
 function persistSettings() {
