@@ -5330,7 +5330,7 @@ function gxRender_level() {
 }
 
 /* ════════════ 📊 보고서·브리핑(자비스) 엔진 + 네이티브 연동 ════════════
- * - 아침 7시 브리핑 / 저녁 9시 하루 결산 / 주간(금요일, 공휴일이면 직전 영업일 18시) / 월간(말일 21시)
+ * - 아침 7시 브리핑 / 저녁 9시 하루 결산 / 주간(금요일, 공휴일이면 직전 영업일 19:30) / 월간(말일 21시)
  * - 보고서는 기간이 끝나면 앱을 열 때 자동 생성되어 'reports' 에 누적 보관(Firebase 동기화)
  * - DHPLAN 네이티브 앱이면 window.DHPLAN 으로 결제 대기열 수신·알림 예약 */
 
@@ -5495,7 +5495,7 @@ function drBriefLines(date) {
   todo.push('생각 정리 3질문', '영어 ' + tgt + '분', '운동 20분+', '지출 기록 확인');
   L.push('✅ 오늘 할 일 — ' + todo.slice(0, 6).join(' / '));
   const mon = drMonday(date), ws = drStats(drIso(mon), drIso(date));
-  L.push('🗓 이번 주 — 지출 ' + drWon(ws.exp) + ' · 운동 ' + ws.workout + '/3일 · 보고서 ' + drMD(drReportDay(date)) + ' 18시');
+  L.push('🗓 이번 주 — 지출 ' + drWon(ws.exp) + ' · 운동 ' + ws.workout + '/3일 · 주간보고 ' + drMD(drReportDay(date)) + ' 19:30');
   if (date.getDay() === 1 && g) { const wk = Object.keys(g.plan).map(a => g.plan[a] && g.plan[a].week ? a + ' ' + g.plan[a].week : '').filter(Boolean); if (wk.length) L.push('🎯 이번 주 목표 — ' + wk.join(' / ')); }
   const y = date.getFullYear(), m = date.getMonth(), budget = drBudget(y, m);
   if (date.getDate() === 1) {
@@ -5523,9 +5523,9 @@ function drEnsureReports() {
   if (typeof currentUser === 'undefined' || !currentUser || !window._dhRemoteReady) return 0;
   const now = new Date(), have = new Set(drGetReports().map(r => r.id));
   let made = 0;
-  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x; };
+  const at = (d, h, mi) => { const x = new Date(d); x.setHours(h, mi || 0, 0, 0); return x; };
   for (let i = 1; i >= 0; i--) { const d = drAdd(now, -i); d.setHours(0, 0, 0, 0); if (now >= at(d, 21) && !have.has('daily-' + drIso(d))) { if (drPutIfActive(drBuildDaily(drIso(d)))) made++; } }
-  for (let i = 1; i >= 0; i--) { const wd = drAdd(drMonday(now), -7 * i); const rd = drReportDay(wd); if (now >= at(rd, 18) && !have.has('weekly-' + drIso(drMonday(wd)))) { if (drPutIfActive(drBuildWeekly(wd))) made++; } }
+  for (let i = 1; i >= 0; i--) { const wd = drAdd(drMonday(now), -7 * i); const rd = drReportDay(wd); if (now >= at(rd, 19, 30) && !have.has('weekly-' + drIso(drMonday(wd)))) { if (drPutIfActive(drBuildWeekly(wd))) made++; } }
   for (let i = 1; i >= 0; i--) { const y = now.getFullYear(), mm = now.getMonth() - i; const md = new Date(y, mm, 1); const ld = drLastDay(md.getFullYear(), md.getMonth()); if (now >= at(ld, 21) && !have.has('monthly-' + md.getFullYear() + '-' + md.getMonth())) { if (drPutIfActive(drBuildMonthly(md.getFullYear(), md.getMonth()))) made++; } }
   return made;
 }
@@ -5534,7 +5534,7 @@ function drEnsureReports() {
 function drScheduleNative() {
   if (!window.DHPLAN || !DHPLAN.schedule) return;
   const now = new Date(), items = [];
-  const at = (d, h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x; };
+  const at = (d, h, mi) => { const x = new Date(d); x.setHours(h, mi || 0, 0, 0); return x; };
   for (let i = 0; i < 7; i++) {
     const d = drAdd(now, i); d.setHours(0, 0, 0, 0);
     const b = at(d, 7);
@@ -5546,7 +5546,7 @@ function drScheduleNative() {
       else items.push({ id: 1100 + i, at: e.getTime(), kind: 'daily', hash: 'report', title: '📋 ' + drMD(d) + ' 하루 결산', body: '오늘의 지출·수입·습관을 정리했어요. 탭해서 확인하세요.' });
     }
     const rd = drReportDay(d);
-    if (drIso(rd) === drIso(d)) { const w = at(d, 18); if (w > now) items.push({ id: 1200 + i, at: w.getTime(), kind: 'weekly', hash: 'report', title: '🗓 주간 보고서가 도착했어요', body: '이번 주 지출·수입·업무·습관 정리와 개선 포인트예요. 탭해서 확인하세요.' + (KR_HOLIDAYS.has(drIso(drAdd(drMonday(d), 4))) ? ' (금요일 공휴일이라 하루 앞당겼어요)' : '') }); }
+    if (drIso(rd) === drIso(d)) { const w = at(d, 19, 30); if (w > now) items.push({ id: 1200 + i, at: w.getTime(), kind: 'weekly', hash: 'report', title: '🗓 주간 보고서가 도착했어요', body: '이번 주 지출·수입·업무·습관 정리와 개선 포인트예요. 탭해서 확인하세요.' + (KR_HOLIDAYS.has(drIso(drAdd(drMonday(d), 4))) ? ' (금요일 공휴일이라 하루 앞당겼어요)' : '') }); }
   }
   // 다음 월말 결산은 7일 창 밖이어도 항상 예약 (앱을 한동안 안 열어도 월간 보고 알림 유지)
   if (!items.some(x => x.kind === 'monthly')) {
@@ -5586,12 +5586,12 @@ function pullNativePayments() {
     if (bad.length) toast('금액을 못 읽은 결제 ' + bad.length + '건 — 보고서 탭에서 확인하세요');
   } finally { _dhPulling = false; }
 }
-let _dhBootDone = false;
+let _dhLastBoot = 0;
 function dhNativePing() {
   if (typeof currentUser === 'undefined' || !currentUser || !window._dhRemoteReady) return;
   try { pullNativePayments(); } catch (e) {}
-  if (!_dhBootDone) {   // 로그인 후 첫 1회: 밀린 보고서 생성 + 알림 예약
-    _dhBootDone = true;
+  if (Date.now() - _dhLastBoot > 30 * 60 * 1000) {   // 로그인 직후 + 이후 30분마다: 밀린 보고서 생성 + 알림 일정·본문 갱신
+    _dhLastBoot = Date.now();
     try { if (drEnsureReports()) { const rv = document.getElementById('reportView'); if (rv && !rv.classList.contains('hidden')) renderReport(); } } catch (e) {}
     try { drScheduleNative(); } catch (e) {}
   }
@@ -5644,6 +5644,7 @@ function drSetFilter(f) { drFilter = f; renderReport(); }
 function drToggle(id) { drOpenId = drOpenId === id ? null : id; renderReport(); }
 function renderReport() {
   const el = document.getElementById('reportView'); if (!el) return;
+  try { drEnsureReports(); } catch (e) {}   // 보고 시각이 지난 보고서는 탭을 열 때 바로 생성
   const all = drGetReports();
   const list = all.filter(r => drFilter === 'all' || r.type === drFilter);
   const chip = (f, label) => '<button onclick="drSetFilter(\'' + f + '\')" style="padding:8px 14px;border:none;border-radius:20px;font-size:13px;font-family:inherit;cursor:pointer;' + (drFilter === f ? 'background:#3b82f6;color:#fff;font-weight:700;' : 'background:rgba(255,255,255,0.06);color:var(--muted);') + '">' + label + '</button>';
@@ -5662,7 +5663,7 @@ function renderReport() {
         (r.next && r.next.length ? '<div style="margin-top:8px;padding:11px 12px;border-radius:10px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.2);"><div style="font-size:13px;font-weight:700;color:#93c5fd;margin-bottom:4px;">📅 다음 달 준비</div>' + r.next.map(x => '<div style="font-size:13.5px;">• ' + escHtml(x) + '</div>').join('') + '</div>' : '') +
         '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;">기간 ' + escHtml(r.period || '') + ' · 작성 ' + new Date(r.created || 0).toLocaleString('ko-KR') + '</div></div>' : '') +
     '</div>';
-  }).join('') : '<div style="padding:28px 10px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7;">아직 보고서가 없어요.<br>하루 결산은 매일 21시, 주간은 금요일(공휴일이면 직전 영업일) 18시,<br>월간은 말일 21시에 자동으로 쌓여요.</div>';
+  }).join('') : '<div style="padding:28px 10px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7;">아직 보고서가 없어요.<br>하루 결산은 매일 21시, 주간은 금요일(공휴일이면 직전 영업일) 19시 30분,<br>월간은 말일 21시에 자동으로 쌓여요.</div>';
 
   // 네이티브 상태
   let status = '';
@@ -5671,7 +5672,7 @@ function renderReport() {
     status = '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:13px 15px;margin-bottom:14px;font-size:13.5px;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>💳 결제 자동기록</span>' + (on ? '<b style="color:#4ade80;">켜짐</b>' : '<button onclick="DHPLAN.openListenerSettings()" style="padding:6px 12px;border:none;border-radius:8px;background:#ef4444;color:#fff;font-size:13px;font-weight:700;">꺼짐 · 켜기</button>') + '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>🔋 백그라운드 유지</span>' + (bat ? '<b style="color:#4ade80;">허용됨</b>' : '<button onclick="DHPLAN.openBatterySettings()" style="padding:6px 12px;border:none;border-radius:8px;background:#f59e0b;color:#111;font-size:13px;font-weight:700;">허용하기</button>') + '</div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>🔔 알림 시간</span><span style="color:var(--muted);font-size:12.5px;">매일 7시·21시 · 금 18시 · 말일 21시</span></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;"><span>🔔 알림 시간</span><span style="color:var(--muted);font-size:12.5px;">매일 7시·21시 · 금 19:30 · 말일 21시</span></div>' +
       '<button onclick="drTestNotify()" style="margin-top:8px;width:100%;padding:10px;border:1px solid rgba(255,255,255,0.12);border-radius:10px;background:transparent;color:var(--text);font-size:13.5px;font-family:inherit;">🔔 알림 테스트 보내기</button></div>';
   }
   let unp = []; try { unp = JSON.parse(dashVal('pay_unparsed') || '[]'); } catch (e) {}
