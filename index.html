@@ -1526,19 +1526,29 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
 <!-- 크게 편집 모달 (핵심 업무 / 해야될 업무 등) -->
 <div class="modal" id="bigEditModal" onclick="closeBigEdit()">
   <div class="modal-content" onclick="event.stopPropagation()" style="width:760px;max-width:94vw;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;">
       <h3 id="bigEditTitle" style="margin:0;color:var(--accent2);">크게 편집</h3>
-      <button type="button" onclick="closeBigEdit()" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button type="button" id="bigEditTextToggle" onclick="toggleBigEditMode()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:11px;font-family:'Noto Sans KR',sans-serif;">✏️ 텍스트 편집</button>
+        <button type="button" onclick="closeBigEdit()" style="background:none;border:none;color:var(--muted);font-size:24px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+      </div>
     </div>
-    <textarea id="bigEditInput" oninput="onBigEditInput()" placeholder="여기에 크게 작성하세요" style="width:100%;height:38vh;background:rgba(255,255,255,0.04);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:14px;color:white;font-family:'Noto Sans KR',sans-serif;font-size:15px;line-height:1.9;resize:none;box-sizing:border-box;"></textarea>
-    <div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-      <span style="font-size:12px;color:var(--accent2);font-weight:700;">✓ 완료 처리</span>
-      <span style="font-size:11px;color:var(--muted);">완료를 누르면 📊 완료 및 성과로 이동해요</span>
+
+    <!-- 목록 모드 (기본): 줄별 할 일/섹션 -->
+    <div id="bigEditListWrap">
+      <div id="bigEditList" style="height:54vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px;"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button type="button" onclick="addTaskLine()" style="flex:1;min-width:130px;background:rgba(59,130,246,0.14);border:1px solid rgba(59,130,246,0.35);color:var(--accent2);border-radius:8px;padding:10px;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;font-weight:700;">＋ 할 일 추가</button>
+        <button type="button" onclick="addSectionLine()" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:var(--muted);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">＋ 섹션</button>
+      </div>
     </div>
-    <div id="bigEditList" style="margin-top:6px;max-height:26vh;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
+
+    <!-- 텍스트 모드: 대량 붙여넣기/편집 -->
+    <textarea id="bigEditInput" oninput="onBigEditInput()" placeholder="여기에 크게 작성하세요&#10;* 로 시작하면 섹션 제목이 됩니다" style="display:none;width:100%;height:58vh;background:rgba(255,255,255,0.04);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:14px;color:white;font-family:'Noto Sans KR',sans-serif;font-size:15px;line-height:1.9;resize:none;box-sizing:border-box;"></textarea>
+
     <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
       <button type="button" onclick="closeBigEdit()" style="padding:10px 30px;background:var(--accent);border:none;border-radius:6px;color:white;cursor:pointer;font-size:14px;font-family:'Noto Sans KR',sans-serif;">닫기</button>
-      <span style="font-size:11px;color:var(--muted);">입력하면 자동 저장돼요</span>
+      <span style="font-size:11px;color:var(--muted);">완료를 누르면 📊 완료 및 성과로 이동 · 자동 저장돼요</span>
     </div>
   </div>
 </div>
@@ -2422,60 +2432,121 @@ function closeModal() {
   currentTextarea = null; currentKey = null;
 }
 
-// ── 크게 편집 모달: 임의의 data-key 칸을 큰 팝업에서 편집 (핵심/해야될 업무 등) ──
+// ── 크게 편집 모달: data-key 칸을 큰 팝업에서 '목록'으로 편집 (핵심/해야될 업무 등) ──
 let bigEditKey = null;
+let bigEditMode = 'list';   // 'list' | 'text'
 function openBigEdit(key, title) {
   bigEditKey = key;
   const el = document.querySelector('[data-key="' + key + '"]');
   const val = el ? (el.value || '') : ((typeof dashVal === 'function') ? (dashVal(key) || '') : '');
   const t = document.getElementById('bigEditTitle'); if (t) t.textContent = title || '크게 편집';
   const ta = document.getElementById('bigEditInput'); if (ta) ta.value = val;
+  bigEditMode = 'list';
+  applyBigEditMode();
   const m = document.getElementById('bigEditModal'); if (m) m.style.display = 'flex';
   renderBigEditList();
-  setTimeout(() => { try { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } catch(e) {} }, 60);
 }
-function onBigEditInput() {
-  if (!bigEditKey) return;
-  const ta = document.getElementById('bigEditInput'); const val = ta ? ta.value : '';
-  // 인라인 칸에도 반영 (readonly여도 값은 갱신)
-  const el = document.querySelector('[data-key="' + bigEditKey + '"]');
-  if (el) { const ro = el.hasAttribute('readonly'); if (ro) el.removeAttribute('readonly'); el.value = val; if (ro) el.setAttribute('readonly', true); }
-  try { dbSet(bigEditKey, val); } catch(e) {}   // 같은 동기화 경로로 저장
-  renderBigEditList();
+function applyBigEditMode() {
+  const listWrap = document.getElementById('bigEditListWrap');
+  const ta = document.getElementById('bigEditInput');
+  const tgl = document.getElementById('bigEditTextToggle');
+  const textMode = (bigEditMode === 'text');
+  if (listWrap) listWrap.style.display = textMode ? 'none' : 'block';
+  if (ta) ta.style.display = textMode ? 'block' : 'none';
+  if (tgl) tgl.textContent = textMode ? '📋 목록으로' : '✏️ 텍스트 편집';
 }
+function toggleBigEditMode() {
+  bigEditMode = (bigEditMode === 'text') ? 'list' : 'text';
+  applyBigEditMode();
+  if (bigEditMode === 'list') renderBigEditList();
+  else { const ta = document.getElementById('bigEditInput'); if (ta) setTimeout(() => { try { ta.focus(); } catch(e) {} }, 50); }
+}
+// 모델(텍스트) 읽기/쓰기 — 저장은 기존 data-key 동기화 경로 재사용
+function bigEditText() { const ta = document.getElementById('bigEditInput'); return ta ? ta.value : ''; }
+function setBigEditText(text, rerender) {
+  const ta = document.getElementById('bigEditInput'); if (ta) ta.value = text;
+  if (bigEditKey) {
+    const el = document.querySelector('[data-key="' + bigEditKey + '"]');
+    if (el) { const ro = el.hasAttribute('readonly'); if (ro) el.removeAttribute('readonly'); el.value = text; if (ro) el.setAttribute('readonly', true); }
+    try { dbSet(bigEditKey, text); } catch(e) {}
+  }
+  if (rerender) renderBigEditList();
+}
+function onBigEditInput() { setBigEditText(bigEditText(), false); }   // 텍스트 모드 입력: 저장만
 function closeBigEdit() {
-  try { onBigEditInput(); } catch(e) {}   // 최신값 저장 보장
+  try { setBigEditText(bigEditText(), false); } catch(e) {}
   try { flushUpdates(); } catch(e) {}
   const m = document.getElementById('bigEditModal'); if (m) m.style.display = 'none';
   bigEditKey = null;
 }
 
-// 줄별 완료/일시 리스트 렌더 (* 로 시작하면 섹션 제목, --- 는 구분선, 나머지는 업무)
+// 목록 렌더: *·# 섹션 제목(인라인 편집), --- 구분선은 숨김(모델 유지), 나머지는 할 일
 function renderBigEditList() {
-  const ta = document.getElementById('bigEditInput');
   const listEl = document.getElementById('bigEditList');
-  if (!ta || !listEl) return;
-  const lines = ta.value.split('\n');
+  if (!listEl) return;
+  const lines = bigEditText().split('\n');
   let html = '';
   lines.forEach((line, idx) => {
     const t = line.trim();
     if (!t) return;
-    if (/^[-=_*]{3,}$/.test(t)) return;   // 구분선
-    const isHeader = t.startsWith('*') || t.startsWith('#') || t.startsWith('[');
+    if (/^[-=_]{3,}$/.test(t)) return;   // 구분선 숨김
+    const isHeader = /^[*#]/.test(t);
     if (isHeader) {
-      html += '<div style="font-size:12px;font-weight:700;color:var(--accent2);margin-top:8px;">' + escHtml(t.replace(/^[*#\s]+/, '')) + '</div>';
+      const htext = t.replace(/^[*#\s]+/, '');
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;">'
+        + '<span style="color:var(--accent2);font-weight:700;flex-shrink:0;">▸</span>'
+        + '<input type="text" value="' + escHtml(htext) + '" oninput="updateHeaderLine(' + idx + ', this.value)" placeholder="섹션 제목" style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,0.08);color:var(--accent2);font-weight:700;font-size:13px;font-family:inherit;outline:none;padding:3px 2px;" />'
+        + '<button type="button" onclick="deleteBigEditLine(' + idx + ')" title="삭제" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;">×</button>'
+        + '</div>';
     } else {
-      html += '<div style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border-radius:7px;padding:7px 9px;">'
-        + '<span style="flex:1;font-size:13px;color:var(--text);white-space:pre-wrap;word-break:break-word;line-height:1.5;">' + escHtml(t) + '</span>'
-        + '<button type="button" onclick="scheduleBigEditLine(' + idx + ')" style="flex-shrink:0;background:rgba(59,130,246,0.14);border:1px solid rgba(59,130,246,0.35);color:var(--accent2);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;white-space:nowrap;">📅 일시</button>'
-        + '<button type="button" onclick="completeBigEditLine(' + idx + ')" style="flex-shrink:0;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.35);color:#4ade80;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;white-space:nowrap;">완료</button>'
+      html += '<div style="display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.04);border-radius:7px;padding:6px 8px;">'
+        + '<input type="text" value="' + escHtml(t) + '" oninput="updateLine(' + idx + ', this.value)" placeholder="할 일 내용" style="flex:1;min-width:0;background:transparent;border:none;color:var(--text);font-size:13px;font-family:inherit;outline:none;padding:3px 2px;" />'
+        + '<button type="button" onclick="scheduleBigEditLine(' + idx + ')" title="일시 설정" style="flex-shrink:0;background:rgba(59,130,246,0.14);border:1px solid rgba(59,130,246,0.35);color:var(--accent2);border-radius:6px;padding:4px 7px;cursor:pointer;font-size:11px;white-space:nowrap;">📅</button>'
+        + '<button type="button" onclick="completeBigEditLine(' + idx + ')" style="flex-shrink:0;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.35);color:#4ade80;border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;white-space:nowrap;">완료</button>'
+        + '<button type="button" onclick="deleteBigEditLine(' + idx + ')" title="삭제" style="flex-shrink:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 2px;">×</button>'
         + '</div>';
     }
   });
-  listEl.innerHTML = html || '<div style="font-size:12px;color:var(--muted);padding:6px 2px;">작성한 줄이 여기 표시돼요. 줄마다 일시를 넣거나 완료 처리할 수 있어요.</div>';
+  listEl.innerHTML = html || '<div style="font-size:13px;color:var(--muted);padding:18px 4px;text-align:center;">아래 ＋ 할 일 추가로 목록을 만들어보세요</div>';
+}
+// 인라인 편집: 리렌더 없이 모델만 갱신(포커스 유지)
+function updateLine(idx, value) {
+  const lines = bigEditText().split('\n');
+  if (idx < 0 || idx >= lines.length) return;
+  lines[idx] = value;
+  setBigEditText(lines.join('\n'), false);
+}
+function updateHeaderLine(idx, value) {
+  const lines = bigEditText().split('\n');
+  if (idx < 0 || idx >= lines.length) return;
+  lines[idx] = '*' + value;
+  setBigEditText(lines.join('\n'), false);
+}
+function focusLastBigEditInput() {
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('#bigEditList input[type="text"]');
+    const last = inputs[inputs.length - 1];
+    if (last) { try { last.focus(); last.select(); } catch(e) {} last.scrollIntoView({ block: 'nearest' }); }
+  }, 40);
+}
+function addTaskLine() {
+  const cur = bigEditText();
+  setBigEditText(cur.replace(/\s*$/, '') + (cur.trim() ? '\n' : '') + '새 할 일', true);
+  focusLastBigEditInput();
+}
+function addSectionLine() {
+  const cur = bigEditText();
+  setBigEditText(cur.replace(/\s*$/, '') + (cur.trim() ? '\n' : '') + '*새 섹션', true);
+  focusLastBigEditInput();
+}
+function deleteBigEditLine(idx) {
+  const lines = bigEditText().split('\n');
+  if (idx < 0 || idx >= lines.length) return;
+  lines.splice(idx, 1);
+  setBigEditText(lines.join('\n'), true);
 }
 
-// 📊 완료 및 성과(result)로 한 줄 추가
+// 📊 완료 및 성과(result)로 한 줄 이동
 function appendToResult(text) {
   const el = document.querySelector('[data-key="result"]');
   const cur = el ? (el.value || '') : ((typeof dashVal === 'function') ? (dashVal('result') || '') : '');
@@ -2487,26 +2558,23 @@ function appendToResult(text) {
   try { dbSet('result', next); } catch(e) {}
 }
 function completeBigEditLine(idx) {
-  const ta = document.getElementById('bigEditInput');
-  const lines = ta.value.split('\n');
+  const lines = bigEditText().split('\n');
   if (idx < 0 || idx >= lines.length) return;
   const done = lines[idx].trim();
   if (!done) return;
   lines.splice(idx, 1);
-  ta.value = lines.join('\n');
-  onBigEditInput();          // core/todo 저장 + 인라인 반영 + 리스트 갱신
-  appendToResult(done);      // 완료 및 성과로 이동
+  setBigEditText(lines.join('\n'), true);
+  appendToResult(done);
   try { flushUpdates(); } catch(e) {}
   try { toast('완료 및 성과로 옮겼어요 ✅'); } catch(e) {}
 }
 
-// 줄에 일시(⏰ MM/DD HH:MM) 태그 붙이기
+// 줄에 일시(⏰ MM/DD HH:MM) 태그
 let pendingSchedLine = null;
 function scheduleBigEditLine(idx) {
   pendingSchedLine = idx;
   const inp = document.getElementById('schedInput');
   if (inp) {
-    // 기본값: 현재시각 근처(분 00) — 로컬 datetime-local 포맷
     const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1);
     const pad = x => String(x).padStart(2, '0');
     inp.value = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
@@ -2522,14 +2590,12 @@ function applySchedule() {
   if (isNaN(d.getTime())) { closeSched(); return; }
   const pad = x => String(x).padStart(2, '0');
   const tag = '⏰ ' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-  const ta = document.getElementById('bigEditInput');
-  const lines = ta.value.split('\n');
+  const lines = bigEditText().split('\n');
   let line = lines[pendingSchedLine];
   if (line == null) { closeSched(); return; }
-  line = line.replace(/\s*⏰\s*\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}\s*$/, '');   // 기존 태그 제거
+  line = line.replace(/\s*⏰\s*\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}\s*$/, '');
   lines[pendingSchedLine] = line.replace(/\s+$/, '') + '  ' + tag;
-  ta.value = lines.join('\n');
-  onBigEditInput();
+  setBigEditText(lines.join('\n'), true);
   closeSched();
   try { toast('일시를 설정했어요 ⏰'); } catch(e) {}
 }
