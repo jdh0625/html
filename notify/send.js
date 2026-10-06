@@ -18,12 +18,19 @@ try {
 } catch (e) { console.error('❌ firebase-admin 초기화 실패:', e.message); process.exit(1); }
 const db = admin.database();
 
+// 안전장치: 어떤 이유로든 멈추면 90초 안에 강제 종료 (예전 15분 행업·취소 방지)
+setTimeout(() => { console.error('⏱ 90초 초과 — 강제 종료'); process.exit(1); }, 90000).unref();
+
 const sanitizeKey = k => k.replace(/[.#$\[\]]/g, '_');
 const pad = x => String(x).padStart(2, '0');
 const won = n => (n || 0).toLocaleString('ko-KR') + '원';
 
 (async () => {
-  const snap = await db.ref('dahoon/data').once('value');
+  // DB 읽기도 멈추면 30초 뒤 실패 (연결 지연 대비)
+  const snap = await Promise.race([
+    db.ref('dahoon/data').once('value'),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('DB 읽기 타임아웃(30초)')), 30000))
+  ]);
   const data = snap.val() || {};
   const get = k => data[sanitizeKey(k)];
 
