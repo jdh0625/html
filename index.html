@@ -1068,6 +1068,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         </div>
         <div class="dash-big" id="dashFixedTotal">0원</div>
         <div class="dash-sub" id="dashFixedList" style="margin-top:6px;"></div>
+        <div id="dashFixedRemain" style="margin-top:12px;"></div>
       </div>
 
       <div class="dash-card">
@@ -1088,7 +1089,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <input type="number" id="quickAmt" inputmode="numeric" placeholder="금액" onkeydown="if(event.key==='Enter')quickAddExpense()" />
           <select id="quickCat">
             <option>🍚 식비</option><option>☕ 카페</option><option>🚌 교통</option><option>🛒 쇼핑</option>
-            <option>🎬 여가</option><option>🏠 생활</option><option>💊 건강</option><option>💳 기타</option>
+            <option>🎬 여가</option><option>🏠 생활</option><option>💊 건강</option>
+            <option>🔁 고정</option><option>💳 기타</option>
           </select>
           <input type="text" id="quickDesc" placeholder="내용(선택)" onkeydown="if(event.key==='Enter')quickAddExpense()" />
           <button onclick="quickAddExpense()">기록</button>
@@ -1195,6 +1197,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <div style="min-width:0;">
             <div style="font-size:10px;color:#fb923c;letter-spacing:1px;margin-bottom:3px;">🔁 이번 달 고정 지출</div>
             <div id="ledgerFixedList" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="ledgerFixedRemain" style="font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex:none;">
             <div id="ledgerFixedTotal" style="font-size:20px;font-weight:800;color:#fb923c;white-space:nowrap;">0원</div>
@@ -1363,7 +1366,8 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         <select id="ledgerCategory" style="flex:0 0 120px;padding:8px;background:var(--panel2);border:1px solid rgba(59,130,246,0.2);color:var(--text);border-radius:6px;font-size:13px;">
           <option>🍽 식비</option><option>🚌 교통</option><option>🏠 주거</option>
           <option>🎉 여가</option><option>👗 쇼핑</option><option>💊 의료</option>
-          <option>📚 교육</option><option>💰 저축</option><option>💼 급여</option><option>📦 기타</option>
+          <option>📚 교육</option><option>💰 저축</option><option>💼 급여</option>
+          <option>🔁 고정</option><option>📦 기타</option>
         </select>
         <input type="number" id="ledgerAmount" placeholder="금액" style="flex:0 0 106px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:6px;color:white;font-size:13px;text-align:right;" onkeydown="if(event.key==='Enter')addLedgerRow()" />
         <button onclick="addLedgerRow()" style="flex:0 0 auto;padding:9px 14px;background:rgba(59,130,246,0.2);border:1px solid rgba(59,130,246,0.35);color:white;border-radius:6px;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">+ 추가</button>
@@ -3421,7 +3425,7 @@ function renderLedgerCalendar() {
 }
 
 function rowHtml(r) {
-  const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','📦 기타'];
+  const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','🔁 고정','📦 기타'];
   const catOpts = cats.map(c => `<option${c===r.cat?' selected':''}>${c}</option>`).join('');
   return `<div id="ledger-row-${r.id}" class="lrow" style="display:grid;grid-template-columns:70px 80px 1fr 130px 120px 80px;padding:9px 14px;border-bottom:1px solid rgba(59,130,246,0.05);align-items:center;font-size:13px;">
     <span style="color:var(--muted);font-size:11px;">${r.date}</span>
@@ -3477,7 +3481,7 @@ function editLedgerRow(id) {
   // 수정 모달 팝업
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:center;justify-content:center;';
-  const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','📦 기타'];
+  const cats = ['🍽 식비','🚌 교통','🏠 주거','🎉 여가','👗 쇼핑','💊 의료','📚 교육','💰 저축','💼 급여','🔁 고정','📦 기타'];
   overlay.innerHTML = `
     <div onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid rgba(59,130,246,0.25);border-radius:14px;padding:24px;width:340px;max-width:90vw;">
       <h3 style="color:var(--accent2);margin-bottom:16px;font-size:14px;">✏ 내역 수정</h3>
@@ -6182,8 +6186,9 @@ function render503020() {
   }
 
   // 이번 달 실제 지출을 필수/여가로 분류 + 고정지출(월세·구독·가족송금 등)은 필수에 포함
+  // '🔁 고정' 카테고리는 fixedTotal로 이미 반영하므로 중복 방지 위해 제외
   let needs = 0, wants = 0;
-  led.filter(r => r.type === 'expense').forEach(r => {
+  led.filter(r => r.type === 'expense' && !String(r.cat || '').includes('고정')).forEach(r => {
     if (needsWantsOf(r.cat) === 'needs') needs += (r.amt || 0); else wants += (r.amt || 0);
   });
   let fixed = 0; try { fixed = fixedTotal(); } catch(e) {}
@@ -6876,6 +6881,13 @@ function buildReminders(force) {
 function getFixed() { try { return JSON.parse(dashVal('fixed_expenses') || '[]'); } catch(e) { return []; } }
 function saveFixed(arr) { dbSet('fixed_expenses', JSON.stringify(arr)); }
 function fixedTotal() { return getFixed().reduce((s,f) => s + (f.amt||0), 0); }
+// 이번 달 가계부에서 '🔁 고정' 카테고리로 기록된 지출 합계 (= 이미 납부한 고정비)
+function fixedPaidThisMonth() {
+  const now = new Date();
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
+  if (!Array.isArray(led)) return 0;
+  return led.filter(r => r.type === 'expense' && String(r.cat || '').includes('고정')).reduce((s, r) => s + (r.amt || 0), 0);
+}
 function renderFixedCard() {
   const arr = getFixed();
   const t = document.getElementById('dashFixedTotal'); if (t) t.textContent = wonFmt(fixedTotal());
@@ -6883,6 +6895,24 @@ function renderFixedCard() {
   if (l) l.innerHTML = arr.length
     ? arr.map(f => `${escHtml(f.name)} <b>${wonFmt(f.amt)}</b>`).join(' · ')
     : '<span class="dash-empty">＋ 관리에서 월세·구독료 등을 등록해 보세요</span>';
+  // 남은 월 납부 표시 (고정 총액 − 이번 달 '고정' 지출)
+  const rem = document.getElementById('dashFixedRemain');
+  if (rem) {
+    const total = fixedTotal();
+    if (total <= 0) { rem.innerHTML = ''; }
+    else {
+      const paid = fixedPaidThisMonth();
+      const remain = Math.max(0, total - paid);
+      const pct = Math.min(100, Math.round(paid / total * 100));
+      rem.innerHTML =
+        '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;">'
+        + '<span style="color:var(--muted);">이번 달 납부 ' + wonFmt(paid) + ' / ' + wonFmt(total) + '</span>'
+        + '<span>남은 월 납부 <b style="color:' + (remain > 0 ? '#fbbf24' : '#4ade80') + ';">' + wonFmt(remain) + '</b></span>'
+        + '</div>'
+        + '<div class="dash-bar"><div class="dash-bar-fill" style="width:' + pct + '%;background:#fb923c;"></div></div>'
+        + (paid === 0 ? '<div class="dash-hint" style="margin-top:6px;">지출 기록 때 카테고리를 <b>🔁 고정</b>으로 하면 여기서 자동 차감돼요.</div>' : '');
+    }
+  }
   renderLedgerFixed();   // 가계부 메인 고정카드도 함께 갱신
 }
 // 가계부 메인 상단의 '월 고정 지출' 카드 갱신 (홈과 동일 데이터)
@@ -6895,6 +6925,16 @@ function renderLedgerFixed() {
     l.innerHTML = arr.length
       ? arr.map(f => `${escHtml(f.name)} <b style="color:#fdba74">${wonFmt(f.amt)}</b>`).join(' · ')
       : '<span style="opacity:.7;">＋ 관리에서 월세·구독료 등을 등록</span>';
+  }
+  const rem = document.getElementById('ledgerFixedRemain');
+  if (rem) {
+    const total = fixedTotal();
+    if (total <= 0) { rem.textContent = ''; }
+    else {
+      const paid = fixedPaidThisMonth();
+      const remain = Math.max(0, total - paid);
+      rem.innerHTML = '남은 월 납부 <b style="color:' + (remain > 0 ? '#fbbf24' : '#4ade80') + '">' + wonFmt(remain) + '</b>' + (paid > 0 ? ' <span style="color:var(--muted);">(납부 ' + wonFmt(paid) + ')</span>' : '');
+    }
   }
 }
 function openFixedModal() { renderFxList(); document.getElementById('fixedModal').classList.add('open'); if (typeof closeMenu === 'function') closeMenu(); }
