@@ -1068,7 +1068,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
         </div>
         <div class="dash-big" id="dashFixedTotal">0원</div>
         <div class="dash-sub" id="dashFixedList" style="margin-top:6px;"></div>
-        <div id="dashFixedRemain" style="margin-top:12px;"></div>
+        <div id="dashFixedRemain" style="margin-top:12px;cursor:pointer;" onclick="openFixedPaidDetail()" title="눌러서 이번 달 고정 납부 내역 보기"></div>
       </div>
 
       <div class="dash-card">
@@ -1197,7 +1197,7 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
           <div style="min-width:0;">
             <div style="font-size:10px;color:#fb923c;letter-spacing:1px;margin-bottom:3px;">🔁 이번 달 고정 지출</div>
             <div id="ledgerFixedList" style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-            <div id="ledgerFixedRemain" style="font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="ledgerFixedRemain" style="font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" onclick="openFixedPaidDetail()" title="눌러서 이번 달 고정 납부 내역 보기"></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex:none;">
             <div id="ledgerFixedTotal" style="font-size:20px;font-weight:800;color:#fb923c;white-space:nowrap;">0원</div>
@@ -1566,6 +1566,18 @@ body.theme-light .jarvis-image img { border-color: #e6e5e2; }
       <button type="button" onclick="closeSched()" style="padding:8px 16px;background:transparent;border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:var(--muted);cursor:pointer;font-size:13px;">취소</button>
       <button type="button" onclick="applySchedule()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:6px;color:white;cursor:pointer;font-size:13px;font-family:'Noto Sans KR',sans-serif;">설정</button>
     </div>
+  </div>
+</div>
+
+<!-- 이번 달 고정 납부 내역 (남은 월 납부 클릭 시) -->
+<div id="fixedPaidModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;" onclick="closeFixedPaidDetail()">
+  <div onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid rgba(251,146,60,0.35);border-radius:12px;padding:20px;width:420px;max-width:92vw;max-height:84vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;">
+      <h3 style="margin:0;color:#fb923c;font-size:15px;">🔁 이번 달 고정 납부 내역</h3>
+      <button type="button" onclick="closeFixedPaidDetail()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+    </div>
+    <div id="fixedPaidBody"></div>
+    <div class="dash-hint" style="margin-top:12px;">지출 기록 때 카테고리를 <b>🔁 고정</b>으로 하면 여기에 '빠져나간 내역'으로 모여요.</div>
   </div>
 </div>
 
@@ -6888,6 +6900,40 @@ function fixedPaidThisMonth() {
   if (!Array.isArray(led)) return 0;
   return led.filter(r => r.type === 'expense' && String(r.cat || '').includes('고정')).reduce((s, r) => s + (r.amt || 0), 0);
 }
+// 이번 달 '고정'으로 빠져나간 지출 행 목록
+function fixedPaidRows() {
+  const now = new Date();
+  let led = []; try { led = JSON.parse(dashVal('ledger-' + now.getFullYear() + '-' + now.getMonth()) || '[]'); } catch(e) {}
+  if (!Array.isArray(led)) return [];
+  return led.filter(r => r.type === 'expense' && String(r.cat || '').includes('고정'));
+}
+// 남은 월 납부 클릭 → 이번 달 고정 납부(빠져나간) 내역 팝업
+function openFixedPaidDetail() {
+  const box = document.getElementById('fixedPaidBody'); if (!box) return;
+  const total = fixedTotal(), paid = fixedPaidThisMonth(), remain = Math.max(0, total - paid);
+  const rows = fixedPaidRows().slice().sort((a, b) => String(a.iso || a.date || '').localeCompare(String(b.iso || b.date || '')));
+  let html = '<div style="display:flex;justify-content:space-between;font-size:13px;background:rgba(251,146,60,0.08);border-radius:8px;padding:9px 12px;margin-bottom:10px;gap:8px;">'
+    + '<span style="color:var(--muted);">총 ' + wonFmt(total) + ' · 납부 ' + wonFmt(paid) + '</span>'
+    + '<span>남은 <b style="color:' + (remain > 0 ? '#fbbf24' : '#4ade80') + ';">' + wonFmt(remain) + '</b></span></div>';
+  if (!rows.length) {
+    html += '<div style="font-size:13px;color:var(--muted);text-align:center;padding:16px 4px;">아직 "🔁 고정"으로 기록된 납부가 없어요.</div>';
+  } else {
+    html += rows.map(r => {
+      const d = r.date || (r.iso ? r.iso.slice(5).replace('-', '/') : '');
+      const name = escHtml(r.desc || '고정 지출');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);">'
+        + '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span style="color:var(--muted);font-size:11px;margin-right:6px;">' + d + '</span>' + name + '</span>'
+        + '<b style="color:#fb923c;white-space:nowrap;">' + wonFmt(r.amt) + '</b></div>';
+    }).join('');
+  }
+  const items = getFixed();
+  if (items.length) {
+    html += '<div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6;">등록 고정: ' + items.map(f => escHtml(f.name) + ' ' + wonFmt(f.amt)).join(' · ') + '</div>';
+  }
+  box.innerHTML = html;
+  const m = document.getElementById('fixedPaidModal'); if (m) m.style.display = 'flex';
+}
+function closeFixedPaidDetail() { const m = document.getElementById('fixedPaidModal'); if (m) m.style.display = 'none'; }
 function renderFixedCard() {
   const arr = getFixed();
   const t = document.getElementById('dashFixedTotal'); if (t) t.textContent = wonFmt(fixedTotal());
@@ -6907,7 +6953,7 @@ function renderFixedCard() {
       rem.innerHTML =
         '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;">'
         + '<span style="color:var(--muted);">이번 달 납부 ' + wonFmt(paid) + ' / ' + wonFmt(total) + '</span>'
-        + '<span>남은 월 납부 <b style="color:' + (remain > 0 ? '#fbbf24' : '#4ade80') + ';">' + wonFmt(remain) + '</b></span>'
+        + '<span>남은 월 납부 <b style="color:' + (remain > 0 ? '#fbbf24' : '#4ade80') + ';">' + wonFmt(remain) + '</b> <span style="color:var(--accent2);font-size:11px;">내역 ›</span></span>'
         + '</div>'
         + '<div class="dash-bar"><div class="dash-bar-fill" style="width:' + pct + '%;background:#fb923c;"></div></div>'
         + (paid === 0 ? '<div class="dash-hint" style="margin-top:6px;">지출 기록 때 카테고리를 <b>🔁 고정</b>으로 하면 여기서 자동 차감돼요.</div>' : '');
