@@ -2317,6 +2317,43 @@ function dateToKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// ── 달력 '휴무' 표시용 대한민국 공휴일(법정·대체·임시·선거일) 2025~2027 ──
+// 제헌절·근로자의 날은 관공서 공휴일이 아니라 제외. (보고서 영업일용 KR_HOLIDAYS Set과는 별개)
+// 매년 인사혁신처 고시 기준으로 날짜 추가 필요.
+const KR_DAYOFF = {
+  // 2025
+  '2025-01-01':'신정','2025-01-27':'임시공휴일','2025-01-28':'설날','2025-01-29':'설날','2025-01-30':'설날',
+  '2025-03-01':'삼일절','2025-03-03':'대체공휴일','2025-05-05':'어린이날·부처님오신날','2025-05-06':'대체공휴일',
+  '2025-06-03':'임시공휴일','2025-06-06':'현충일','2025-08-15':'광복절','2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석','2025-10-07':'추석','2025-10-08':'대체공휴일','2025-10-09':'한글날','2025-12-25':'성탄절',
+  // 2026
+  '2026-01-01':'신정','2026-02-16':'설날','2026-02-17':'설날','2026-02-18':'설날','2026-03-01':'삼일절','2026-03-02':'대체공휴일',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-05-25':'대체공휴일','2026-06-03':'지방선거','2026-06-06':'현충일',
+  '2026-08-15':'광복절','2026-08-17':'대체공휴일','2026-09-24':'추석','2026-09-25':'추석','2026-09-26':'추석',
+  '2026-10-03':'개천절','2026-10-05':'대체공휴일','2026-10-09':'한글날','2026-12-25':'성탄절',
+  // 2027
+  '2027-01-01':'신정','2027-02-06':'설날','2027-02-07':'설날','2027-02-08':'설날','2027-02-09':'대체공휴일',
+  '2027-03-01':'삼일절','2027-05-05':'어린이날','2027-05-13':'부처님오신날','2027-06-06':'현충일',
+  '2027-08-15':'광복절','2027-08-16':'대체공휴일','2027-09-14':'추석','2027-09-15':'추석','2027-09-16':'추석',
+  '2027-10-03':'개천절','2027-10-04':'대체공휴일','2027-10-09':'한글날','2027-10-11':'대체공휴일','2027-12-25':'성탄절','2027-12-27':'대체공휴일'
+};
+// 휴무 판정: 공휴일 > 일요일 > 토요일. {off, name}
+function krDayOff(date) {
+  const key = dateToKey(date);
+  const hol = KR_DAYOFF[key];
+  if (hol) return { off: true, name: hol };
+  const dow = date.getDay();
+  if (dow === 0 || dow === 6) return { off: true, name: '' };   // 토·일
+  return { off: false, name: '' };
+}
+// 초록 휴무 배지 HTML
+function krDayOffBadge(date) {
+  const o = krDayOff(date);
+  if (!o.off) return '';
+  const txt = o.name ? ('휴무·' + o.name) : '휴무';
+  return '<span style="font-size:9px;background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.45);color:#4ade80;border-radius:4px;padding:1px 6px;white-space:nowrap;font-weight:600;">' + txt + '</span>';
+}
+
 function renderWeek() {
   week.innerHTML = '';
   const monday = getWeekMonday(weekOffset);
@@ -2360,6 +2397,7 @@ function renderWeek() {
     <b style="${isToday ? 'color:#60a5fa;' : ''}">${d}
       <span onclick="openDayDateEdit('${dateKey}',${i})" style="font-weight:400;font-size:10px;color:${isToday ? '#60a5fa' : 'var(--muted)'};margin-left:5px;cursor:pointer;border-bottom:1px dashed rgba(255,255,255,0.2);" title="클릭하여 날짜 수정">(${dateLabel})</span>
       ${isToday ? '<span style="font-size:9px;background:#3b82f6;color:white;border-radius:3px;padding:1px 5px;margin-left:4px;">오늘</span>' : ''}
+      ${krDayOffBadge(dayDate) ? '<span style="margin-left:4px;">' + krDayOffBadge(dayDate) + '</span>' : ''}
     </b>
     <button onclick="deleteDayContent('${dateKey}')" title="${d} 내용 삭제" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:5px;color:rgba(248,113,113,0.6);cursor:pointer;font-size:10px;padding:2px 7px;font-family:'Noto Sans KR',sans-serif;" onmouseover="this.style.background='rgba(239,68,68,0.2)';this.style.color='#f87171'" onmouseout="this.style.background='rgba(239,68,68,0.08)';this.style.color='rgba(248,113,113,0.6)'">🗑 삭제</button>
     </div>
@@ -2634,13 +2672,18 @@ function renderMonth() {
     const cell = document.createElement('div');
     cell.className = 'day';
     const key = `month-${y}-${m}-${d}`;
-    const dow = new Date(y,m,d).getDay();
+    const cellDate = new Date(y,m,d);
+    const dow = cellDate.getDay();
     const isSun = dow === 0;
     const isSat = dow === 6;
+    const off = krDayOff(cellDate);
     cell.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-shrink:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;margin-bottom:5px;flex-shrink:0;">
         <b class='${isSun?"holiday":(isSat?"holiday":"")}' style="font-size:14px;">${d}</b>
-        <span style="font-size:10px;color:${isSun||isSat?"#ef4444":"var(--muted)"};">${dayNames[dow]}</span>
+        <div style="display:flex;align-items:center;gap:4px;min-width:0;">
+          ${off.off ? krDayOffBadge(cellDate) : ''}
+          <span style="font-size:10px;color:${off.off?"#4ade80":"var(--muted)"};flex-shrink:0;">${dayNames[dow]}</span>
+        </div>
       </div>
       <select data-key='${key}-type' style="margin-bottom:5px;flex-shrink:0;"><option>🔵업무</option><option>🟢개인</option><option>🟡투자</option></select>
       <textarea readonly data-key='${key}' placeholder='클릭하여 입력...' style="cursor:pointer;flex:1;min-height:0;"></textarea>`;
